@@ -109,12 +109,17 @@ Motor + Atlas. `POST /receipts` persiste o cupom na primeira leitura (201) e ret
 
 ---
 
-## Task 8a — Histórico de Cupons ❌
+## Task 8a — Histórico de Cupons ✅
 
-Expor o histórico de cupons salvos via API.
+Expor o histórico de cupons salvos via API com paginação.
 
-**Endpoints planejados:**
+**Endpoints criados:**
 - `GET /receipts` (sem url) — histórico de cupons do usuário
+
+**Arquivos modificados:**
+- `backend/app/routes/receipts.py`
+- `backend/app/db/repositories/receipts.py`
+- `backend/tests/test_receipts_endpoint.py`
 
 ---
 
@@ -141,8 +146,8 @@ Expor a comparação de preços de produtos via API.
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
 | Backend | test_db_receipts.py | 5 |
-| Backend | test_receipts_endpoint.py | 11 |
+| Backend | test_receipts_endpoint.py | 14 |
 | Backend | test_prices_endpoint.py | 7 |
 | Frontend | parseNfceQr.test.ts | 11 |
 | Frontend | QrReader.test.tsx | 6 |
-| **Total** | | **77** |
+| **Total** | | **80** |
