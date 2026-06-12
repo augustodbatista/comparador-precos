@@ -5,6 +5,7 @@ import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 const SCANNER_ID = 'qr-reader-container'
 
 function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
+  // React StrictMode monta efeitos duas vezes em dev — o ref evita inicializar o scanner duplicado
   const initialized = useRef(false)
 
   useEffect(() => {
@@ -19,10 +20,11 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
 
     scanner.render(
       (text) => onScan(parseNfceQr(text)),
-      () => {},
+      () => {}, // erros de frame individuais são ignorados; só o sucesso importa
     )
 
     return () => {
+      // O cleanup pode falhar se a câmera já foi liberada (ex: troca rápida de tela)
       scanner.clear().catch(() => {})
     }
   }, [onScan])
@@ -81,6 +83,7 @@ function ResultView({ data, onReset }: { data: NfceData; onReset: () => void }) 
         </p>
       </div>
 
+      {/* <a> em vez de window.open: browsers móveis bloqueiam window.open em callbacks assíncronos */}
       <a
         href={data.url}
         target="_blank"
@@ -103,6 +106,7 @@ function ResultView({ data, onReset }: { data: NfceData; onReset: () => void }) 
 export function QrReader() {
   const [scanData, setScanData] = useState<NfceData | null>(null)
   const [hasError, setHasError] = useState(false)
+  // Incrementar scanKey força React a remontar ScannerView, reiniciando o scanner sem lógica extra
   const [scanKey, setScanKey] = useState(0)
 
   function handleScan(data: NfceData | null) {

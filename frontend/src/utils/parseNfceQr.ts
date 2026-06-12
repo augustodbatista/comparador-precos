@@ -8,13 +8,13 @@ export function parseNfceQr(raw: string): NfceData | null {
     const trimmed = raw.trim()
     const url = new URL(trimmed)
 
-    // SP, RS e maioria dos estados: chNFe ou chConsNFCe como param direto
+    // SP/RS usam chNFe; RS legado usa chConsNFCe — ambos expõem a chave diretamente
     const directKey = url.searchParams.get('chNFe') ?? url.searchParams.get('chConsNFCe')
     if (directKey && /^\d{44}$/.test(directKey)) {
       return { url: trimmed, accessKey: directKey }
     }
 
-    // MG e outros: param "p" com formato "chave|cDest|..."
+    // MG e outros: param "p" com formato "<chave>|<cDest>|<hash>" — a chave é sempre o segmento 0
     const pParam = url.searchParams.get('p')
     if (pParam) {
       const candidate = pParam.split('|')[0]
@@ -23,7 +23,8 @@ export function parseNfceQr(raw: string): NfceData | null {
       }
     }
 
-    // Fallback: 44 dígitos consecutivos em qualquer parte da URL
+    // Fallback para estados com formato não-padrão — lookbehind/lookahead negativos
+    // evitam capturar sequências maiores que 44 dígitos
     const match = trimmed.match(/(?<!\d)(\d{44})(?!\d)/)
     if (match) {
       return { url: trimmed, accessKey: match[1] }
@@ -31,6 +32,7 @@ export function parseNfceQr(raw: string): NfceData | null {
 
     return null
   } catch {
+    // new URL() lança TypeError para qualquer string não-URL; tratamos como inválida
     return null
   }
 }
