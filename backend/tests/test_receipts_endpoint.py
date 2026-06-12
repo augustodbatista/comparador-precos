@@ -137,3 +137,67 @@ class TestPostReceipts:
         )
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
+
+
+@pytest.mark.asyncio
+class TestListReceipts:
+    async def test_retorna_lista_vazia_se_banco_vazio(self, client):
+        response = await client.get("/receipts")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    async def test_retorna_cupons_ordenados_por_data_decrescente(self, client):
+        from app.db.repositories.receipts import insert_receipt
+        doc_old = {
+            "access_key": "11111111111111111111111111111111111111111111",
+            "url": "https://url1",
+            "issuer": {"name": "Loja A", "cnpj": "11111111000111", "address": "End A"},
+            "items": [],
+            "totals": {"total": 10.0, "paid": 10.0, "items_count": 0},
+            "invoice": {"model": "65", "series": "1", "number": "1", "issued_at": "2026-06-07T10:00:00"}
+        }
+        doc_new = {
+            "access_key": "22222222222222222222222222222222222222222222",
+            "url": "https://url2",
+            "issuer": {"name": "Loja B", "cnpj": "22222222000122", "address": "End B"},
+            "items": [],
+            "totals": {"total": 20.0, "paid": 20.0, "items_count": 0},
+            "invoice": {"model": "65", "series": "1", "number": "2", "issued_at": "2026-06-07T12:00:00"}
+        }
+        await insert_receipt(app.state.db, doc_old)
+        await insert_receipt(app.state.db, doc_new)
+
+        response = await client.get("/receipts")
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 2
+        assert body[0]["access_key"] == "22222222222222222222222222222222222222222222"
+        assert body[1]["access_key"] == "11111111111111111111111111111111111111111111"
+
+    async def test_paginacao_retorna_itens_corretos(self, client):
+        from app.db.repositories.receipts import insert_receipt
+        for i in range(3):
+            doc = {
+                "access_key": f"{i}1111111111111111111111111111111111111111111",
+                "url": f"https://url{i}",
+                "issuer": {"name": f"Loja {i}", "cnpj": f"{i}1111111000111", "address": f"End {i}"},
+                "items": [],
+                "totals": {"total": 10.0, "paid": 10.0, "items_count": 0},
+                "invoice": {"model": "65", "series": "1", "number": str(i), "issued_at": f"2026-06-07T10:00:0{i}"}
+            }
+            await insert_receipt(app.state.db, doc)
+
+        # Página 1 com limite 2 (deve trazer as duas mais recentes: i=2 e i=1)
+        response = await client.get("/receipts", params={"page": 1, "limit": 2})
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 2
+        assert body[0]["access_key"] == "21111111111111111111111111111111111111111111"
+        assert body[1]["access_key"] == "11111111111111111111111111111111111111111111"
+
+        # Página 2 com limite 2 (deve trazer a mais antiga restante: i=0)
+        response2 = await client.get("/receipts", params={"page": 2, "limit": 2})
+        assert response2.status_code == 200
+        body2 = response2.json()
+        assert len(body2) == 1
+        assert body2[0]["access_key"] == "01111111111111111111111111111111111111111111"
