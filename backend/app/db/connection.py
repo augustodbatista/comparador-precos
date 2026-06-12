@@ -12,6 +12,9 @@ load_dotenv()
 
 
 def get_client() -> AsyncIOMotorClient:
+    if os.getenv("MOCK_DB", "false").lower() == "true":
+        from mongomock_motor import AsyncMongoMockClient
+        return AsyncMongoMockClient()
     url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     return AsyncIOMotorClient(url)
 
