@@ -24,7 +24,7 @@ Sistema colaborativo de comparação de preços via leitura de cupons fiscais el
 |---|---|
 | Frontend | React 18 + TypeScript + Vite |
 | Backend | Python 3.11 + FastAPI + httpx |
-| Parser HTML | BeautifulSoup4 *(em desenvolvimento)* |
+| Parser HTML | BeautifulSoup4 *(MG suportado; SP a implementar)* |
 | Banco de dados | MongoDB + Motor *(em desenvolvimento)* |
 | Deploy frontend | Vercel |
 
@@ -73,7 +73,12 @@ Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados.
 ```json
 {
   "access_key": "31260661585865266267650040002426521200179790",
-  "html": "<html>...</html>"
+  "issuer": { "name": "CASA RENA S/A", "cnpj": "21253729001979", "address": "AV. ARGENTINA, 270..." },
+  "items": [
+    { "code": "5173", "description": "SUCO D VALLE MA+S 1L", "qty": 1.0, "unit": "TP", "unit_price": 7.99, "total": 7.99 }
+  ],
+  "totals": { "total": 124.10, "paid": 124.10, "items_count": 15 },
+  "invoice": { "model": "65", "series": "14", "number": "34772", "issued_at": "2026-06-07T11:36:44" }
 }
 ```
 
@@ -87,7 +92,7 @@ Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados.
 ## Testes
 
 ```bash
-# Backend (41 testes no total)
+# Backend (44 testes no total)
 cd backend && python -m pytest -v
 
 # Frontend
@@ -104,7 +109,7 @@ Veja [TASKS.md](TASKS.md) para o progresso detalhado.
 | 2. Parser de QR Code no backend | ✅ |
 | 3. Leitor de QR Code no frontend | ✅ |
 | 4. Endpoint POST /receipts | ✅ |
-| 5. Parser HTML (BeautifulSoup4) | ❌ |
+| 5. Parser HTML (BeautifulSoup4) | ✅ |
 | 6. Normalização de nomes de produtos | ❌ |
 | 7. Persistência no MongoDB | ❌ |
 | 8. Endpoints de consulta de preços | ❌ |

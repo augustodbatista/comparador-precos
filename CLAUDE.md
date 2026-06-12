@@ -54,14 +54,22 @@ comparador-precos/
 │   ├── app/
 │   │   ├── routes/
 │   │   │   └── receipts.py         ← POST /receipts
+│   │   ├── db/
+│   │   │   ├── connection.py       ← get_client(), get_db()
+│   │   │   └── repositories/
+│   │   │       └── receipts.py     ← find_by_access_key(), insert_receipt()
 │   │   ├── services/
 │   │   │   ├── qr_parser.py        ← parse_qr_nfce()
-│   │   │   └── nfce_fetcher.py     ← fetch_nfce_html()
+│   │   │   ├── nfce_fetcher.py     ← fetch_nfce_html()
+│   │   │   └── html_parser.py      ← parse_nfce_html() — MG suportado; SP a implementar
 │   │   ├── models/                 ← (Task 7)
 │   │   └── db/                     ← (Task 7)
 │   └── tests/
+│       ├── fixtures/mg_sefaz.html  ← HTML real da SEFAZ MG (Casa Rena, 07/06/2026)
 │       ├── test_qr_parser.py
 │       ├── test_nfce_fetcher.py
+│       ├── test_html_parser.py
+│       ├── test_db_receipts.py
 │       └── test_receipts_endpoint.py
 └── frontend/
     ├── vercel.json

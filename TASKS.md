@@ -58,19 +58,25 @@ CORS configurado para Vercel. HTML cru retornado por enquanto (parser vem na Tas
 
 ---
 
-## Task 5 — Parser HTML com BeautifulSoup4 ❌
+## Task 5 — Parser HTML com BeautifulSoup4 ✅
 
-Parsear o HTML retornado pela SEFAZ e extrair campos estruturados.
+Parseia o HTML retornado pela SEFAZ e extrai campos estruturados.
+Suporte atual: MG (portalsped.fazenda.mg.gov.br). SP será adicionado com fixture real.
 
-**O que extrair:**
+**O que extrai:**
 - `issuer`: CNPJ, razão social, endereço
-- `items[]`: código interno, descrição, quantidade, unidade, valor unitário, valor total
-- `totals`: valor total da nota, descontos, tributos
-- `invoice`: número, série, data de emissão, chave de acesso
+- `items[]`: código interno, descrição, quantidade, unidade, `unit_price = total / qty`, valor total
+- `totals`: valor total, valor pago, quantidade de itens
+- `invoice`: modelo, série, número, data de emissão (ISO 8601)
 
-**Arquivos planejados:**
+**Arquivos criados:**
 - `backend/app/services/html_parser.py`
-- `backend/tests/test_html_parser.py`
+- `backend/tests/test_html_parser.py` — 19 testes
+- `backend/tests/fixtures/mg_sefaz.html` — fixture HTML real da SEFAZ MG
+
+**Endpoint atualizado:**
+- `POST /receipts` retorna JSON estruturado (substituiu campo `html` cru)
+- `test_receipts_endpoint.py` atualizado — 7 testes
 
 ---
 
@@ -85,18 +91,19 @@ Estratégia ainda indefinida — pode usar heurísticas, fuzzy matching ou LLM.
 
 ---
 
-## Task 7 — Persistência no MongoDB (Motor) ❌
+## Task 7 — Persistência no MongoDB (Motor) ✅
 
-Conectar Motor, criar repositórios para as três coleções.
+Motor + Atlas. `POST /receipts` persiste o cupom na primeira leitura (201) e retorna dados existentes na segunda (200), sem re-fetch na SEFAZ.
 
-**Coleções:**
-- `receipts`: cupons fiscais (accessKey único)
-- `products`: produtos normalizados
-- `prices`: histórico de preços por produto/loja
+**Arquivos criados:**
+- `backend/app/db/connection.py` — Motor client + helper get_db
+- `backend/app/db/repositories/receipts.py` — find_by_access_key, insert_receipt
+- `backend/tests/test_db_receipts.py` — 5 testes com mongomock-motor
 
-**Arquivos planejados:**
-- `backend/app/db/connection.py`
-- `backend/app/db/repositories/receipts.py`
+**Arquivos modificados:**
+- `backend/main.py` — lifespan abre/fecha Motor client
+- `backend/app/routes/receipts.py` — fluxo com lookup de DB antes do fetch
+- `backend/tests/test_receipts_endpoint.py` — 10 testes (4 novos + 6 existentes)
 - `backend/app/db/repositories/products.py`
 - `backend/app/db/repositories/prices.py`
 
@@ -122,7 +129,9 @@ Expor o histórico e comparação de preços via API.
 |---|---|---|
 | Backend | test_qr_parser.py | 14 |
 | Backend | test_nfce_fetcher.py | 4 |
-| Backend | test_receipts_endpoint.py | 6 |
+| Backend | test_html_parser.py | 19 |
+| Backend | test_db_receipts.py | 5 |
+| Backend | test_receipts_endpoint.py | 10 |
 | Frontend | parseNfceQr.test.ts | 11 |
 | Frontend | QrReader.test.tsx | 6 |
-| **Total** | | **41** |
+| **Total** | | **52** |
