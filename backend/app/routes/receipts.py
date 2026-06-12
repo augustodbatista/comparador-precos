@@ -2,7 +2,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
-from app.db.repositories.receipts import find_by_access_key, insert_receipt
+from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 from app.services.html_parser import ParseError, parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError, fetch_nfce_html
 from app.services.qr_parser import parse_qr_nfce
@@ -59,20 +59,33 @@ class ReceiptData(BaseModel):
 # Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
 # ---------------------------------------------------------------------------
 
-@router.get("/receipts", response_model=ReceiptData)
-async def get_receipt(request: Request, url: str = Query(..., description="URL do QR Code da NFC-e")) -> ReceiptData:
-    """Recebe a URL do QR Code, busca o HTML na SEFAZ e retorna dados estruturados.
+@router.get("/receipts", response_model=ReceiptData | list[ReceiptData])
+async def get_receipt(
+    request: Request,
+    url: str | None = Query(None, description="URL do QR Code da NFC-e"),
+    page: int = Query(1, ge=1, description="Número da página (para listagem)"),
+    limit: int = Query(20, ge=1, le=100, description="Limite de cupons por página")
+) -> ReceiptData | list[ReceiptData]:
+    """Busca um cupom ou lista o histórico de cupons salvos.
 
-    Mapeamento de erros:
-    - 422: URL não é uma NFC-e válida, ou HTML não reconhecido
-    - 502: SEFAZ retornou erro HTTP
-    - 504: Timeout ao acessar a SEFAZ
+    Se 'url' for fornecida:
+    - Busca o HTML na SEFAZ, parseia com BS4 e retorna JSON estruturado.
+    - Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
+
+    Se 'url' for omitida:
+    - Retorna a lista de cupons salvos com paginação básica.
     """
+    db = request.app.state.db
+
+    # Caso sem URL: Listagem do histórico
+    if url is None:
+        results = await list_receipts(db, page=page, limit=limit)
+        return [ReceiptData(**doc) for doc in results]
+
+    # Caso com URL: Busca individual
     nfce_data = parse_qr_nfce(url)
     if nfce_data is None:
         raise HTTPException(status_code=422, detail="URL não é uma NFC-e válida")
-
-    db = request.app.state.db
 
     # Cupom já salvo anteriormente — retorna do banco sem re-buscar na SEFAZ
     existing = await find_by_access_key(db, nfce_data.access_key)
