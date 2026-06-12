@@ -24,3 +24,13 @@ async def insert_receipt(db: AsyncIOMotorDatabase, doc: dict) -> dict:
     await db[COLLECTION].insert_one(to_insert)
     to_insert.pop("_id", None)
     return to_insert
+
+
+async def list_receipts(db: AsyncIOMotorDatabase, page: int = 1, limit: int = 20) -> list[dict]:
+    """Lista todos os cupons salvos, ordenados por data de emissão decrescente."""
+    skip = (page - 1) * limit
+    cursor = db[COLLECTION].find().sort("invoice.issued_at", -1).skip(skip).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    for doc in docs:
+        doc.pop("_id", None)
+    return docs
