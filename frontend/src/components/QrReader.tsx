@@ -81,7 +81,13 @@ function ResultView({ data, onReset }: { data: NfceData; onReset: () => void }) 
         </p>
       </div>
 
-      <button onClick={handleCopy} style={{ ...btnStyle, background: '#1a7a1a', color: '#fff' }}>
+      <button
+        onClick={() => window.open(data.url, '_blank', 'noopener,noreferrer')}
+        style={{ ...btnStyle, background: '#1a7a1a', color: '#fff' }}
+      >
+        Abrir URL
+      </button>
+      <button onClick={handleCopy} style={{ ...btnStyle, background: '#555', color: '#fff' }}>
         {copied ? 'Copiado!' : 'Copiar URL'}
       </button>
       <button onClick={onReset} style={{ ...btnStyle, background: '#eee', color: '#333' }}>

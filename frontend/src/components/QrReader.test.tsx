@@ -64,6 +64,18 @@ describe('QrReader', () => {
     expect(screen.getByText(/aponte a câmera/i)).toBeInTheDocument()
   })
 
+  it('botão "Abrir URL" abre a URL em nova aba', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    render(<QrReader />)
+    await act(async () => { capturedOnScan!(VALID_URL) })
+
+    await userEvent.click(screen.getByText(/abrir url/i))
+
+    expect(open).toHaveBeenCalledWith(VALID_URL, '_blank', 'noopener,noreferrer')
+    open.mockRestore()
+  })
+
   it('botão "Copiar URL" chama clipboard com a URL correta', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
