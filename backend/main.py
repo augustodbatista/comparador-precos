@@ -23,28 +23,9 @@ async def lifespan(app: FastAPI):
         try:
             await asyncio.wait_for(client.admin.command('ping'), timeout=1.5)
             logger.info("Conexão com o MongoDB estabelecida com sucesso!")
-        except Exception:
-            logger.warning(
-                "Não foi possível conectar ao MongoDB local/Atlas. "
-                "Habilitando banco de dados MOCKADO (em memória) para testes..."
-            )
-            client.close()
-            from mongomock_motor import AsyncMongoMockClient
-            client = AsyncMongoMockClient()
-            is_mock = True
-
-    # Se for mock, popula com dados iniciais se estiver vazio
-    if is_mock:
-        db = client["comparador_precos"]
-        # Criamos o índice único
-        await db["receipts"].create_index("access_key", unique=True)
-        # Popula dados de demonstração
-        from app.db.repositories.mock_data import MOCK_RECEIPTS
-        for receipt in MOCK_RECEIPTS:
-            try:
-                await db["receipts"].insert_one(receipt.copy())
-            except Exception:
-                pass
+        except Exception as e:
+            logger.error(f"Falha crítica na conexão com o MongoDB: {e}")
+            raise RuntimeError("Não foi possível conectar ao banco de dados MongoDB.") from e
 
     app.state.motor_client = client
     app.state.db = get_db(client)

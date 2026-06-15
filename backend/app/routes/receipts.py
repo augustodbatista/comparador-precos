@@ -53,36 +53,37 @@ class ReceiptData(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# GET /receipts?url=...
+# GET /receipts
+# Retorna a lista de cupons salvos com paginação básica.
+# ---------------------------------------------------------------------------
+
+@router.get("/receipts", response_model=list[ReceiptData])
+async def list_saved_receipts(
+    request: Request,
+    page: int = Query(1, ge=1, description="Número da página (para listagem)"),
+    limit: int = Query(20, ge=1, le=100, description="Limite de cupons por página")
+) -> list[ReceiptData]:
+    """Lista o histórico de cupons salvos."""
+    db = request.app.state.db
+    results = await list_receipts(db, page=page, limit=limit)
+    return [ReceiptData(**doc) for doc in results]
+
+
+# ---------------------------------------------------------------------------
+# GET /receipts/by-url
 # Busca o HTML na SEFAZ, parseia com BS4 e retorna JSON estruturado.
 # Não salva no banco — o frontend exibe os dados e o usuário decide salvar.
 # Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
 # ---------------------------------------------------------------------------
 
-@router.get("/receipts", response_model=ReceiptData | list[ReceiptData])
-async def get_receipt(
+@router.get("/receipts/by-url", response_model=ReceiptData)
+async def get_receipt_by_url(
     request: Request,
-    url: str | None = Query(None, description="URL do QR Code da NFC-e"),
-    page: int = Query(1, ge=1, description="Número da página (para listagem)"),
-    limit: int = Query(20, ge=1, le=100, description="Limite de cupons por página")
-) -> ReceiptData | list[ReceiptData]:
-    """Busca um cupom ou lista o histórico de cupons salvos.
-
-    Se 'url' for fornecida:
-    - Busca o HTML na SEFAZ, parseia com BS4 e retorna JSON estruturado.
-    - Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
-
-    Se 'url' for omitida:
-    - Retorna a lista de cupons salvos com paginação básica.
-    """
+    url: str = Query(..., description="URL do QR Code da NFC-e")
+) -> ReceiptData:
+    """Busca um cupom pelo link da NFC-e (com consulta à SEFAZ se inédito)."""
     db = request.app.state.db
 
-    # Caso sem URL: Listagem do histórico
-    if url is None:
-        results = await list_receipts(db, page=page, limit=limit)
-        return [ReceiptData(**doc) for doc in results]
-
-    # Caso com URL: Busca individual
     nfce_data = parse_qr_nfce(url)
     if nfce_data is None:
         raise HTTPException(status_code=422, detail="URL não é uma NFC-e válida")
