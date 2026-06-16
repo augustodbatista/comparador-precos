@@ -4,6 +4,7 @@ Testes de integração para GET /receipts e POST /receipts.
 - O banco usa mongomock-motor (in-memory) injetado em app.state.db.
 - O parser HTML roda de verdade usando a fixture mg_sefaz.html.
 """
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -13,6 +14,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
+from app.services.html_parser import parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError
 from main import app
 
@@ -21,6 +23,15 @@ MG_HTML = (FIXTURES / "mg_sefaz.html").read_text(encoding="utf-8")
 
 VALID_URL = "https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=31260661585865266267650040002426521200179790|3|1"
 VALID_KEY = "31260661585865266267650040002426521200179790"
+
+
+def receipt_doc(access_key: str, created_at: datetime) -> dict:
+    return {
+        "access_key": access_key,
+        "url": f"https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p={access_key}|3|1",
+        **parse_nfce_html(MG_HTML),
+        "created_at": created_at,
+    }
 
 
 @pytest_asyncio.fixture
@@ -38,6 +49,33 @@ async def client():
 
 @pytest.mark.asyncio
 class TestGetReceipts:
+    async def test_lista_historico_salvo_sem_url(self, client):
+        older = receipt_doc("1" * 44, datetime(2026, 6, 1, tzinfo=timezone.utc))
+        newer = receipt_doc("2" * 44, datetime(2026, 6, 2, tzinfo=timezone.utc))
+        await app.state.db["receipts"].insert_many([older, newer])
+
+        response = await client.get("/receipts")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert [receipt["access_key"] for receipt in body] == ["2" * 44, "1" * 44]
+        assert body[0]["created_at"].startswith("2026-06-02T00:00:00")
+
+    async def test_lista_historico_respeita_limit_e_skip(self, client):
+        docs = [
+            receipt_doc("1" * 44, datetime(2026, 6, 1, tzinfo=timezone.utc)),
+            receipt_doc("2" * 44, datetime(2026, 6, 2, tzinfo=timezone.utc)),
+            receipt_doc("3" * 44, datetime(2026, 6, 3, tzinfo=timezone.utc)),
+        ]
+        await app.state.db["receipts"].insert_many(docs)
+
+        response = await client.get("/receipts", params={"limit": 1, "skip": 1})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["access_key"] == "2" * 44
+
     async def test_retorna_200_com_dados_estruturados(self, client):
         with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
             response = await client.get("/receipts", params={"url": VALID_URL})

@@ -109,17 +109,35 @@ Motor + Atlas. `POST /receipts` persiste o cupom na primeira leitura (201) e ret
 
 ---
 
-## Task 8 — Endpoints de consulta ❌
+## Task 8a — Histórico de Cupons ✅
 
-Expor o histórico e comparação de preços via API.
+`GET /receipts` retorna a lista de cupons persistidos no MongoDB, do mais recente para o mais antigo.
+Aceita `limit` (1–100, padrão 50) e `skip` (padrão 0) para paginação.
 
-**Endpoints planejados:**
-- `GET /receipts` — histórico de cupons do usuário
+Compatibilidade mantida:
+- `GET /receipts?url=...` continua consultando uma NFC-e específica
+- `POST /receipts` continua salvando o cupom de forma idempotente
+
+**Arquivos modificados:**
+- `backend/app/db/repositories/receipts.py` — `list_receipts`
+- `backend/app/routes/receipts.py` — listagem em `GET /receipts`
+- `backend/tests/test_db_receipts.py` — testes de listagem/paginação
+- `backend/tests/test_receipts_endpoint.py` — testes de integração do histórico
+
+---
+
+## Task 8b — Endpoints de comparação de preços ✅
+
+Expor a comparação de preços de produtos via API.
+
+**Endpoints criados:**
 - `GET /prices/latest?product_id=` — último preço registrado
 - `GET /prices/lowest?product_id=` — menor preço já visto
 
-**Arquivo planejado:**
+**Arquivos criados:**
 - `backend/app/routes/prices.py`
+- `backend/app/db/repositories/prices.py`
+- `backend/tests/test_prices_endpoint.py`
 
 ---
 
@@ -130,8 +148,17 @@ Expor o histórico e comparação de preços via API.
 | Backend | test_qr_parser.py | 14 |
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
+<<<<<<< HEAD
 | Backend | test_db_receipts.py | 5 |
-| Backend | test_receipts_endpoint.py | 10 |
+| Backend | test_receipts_endpoint.py | 14 |
+| Backend | test_prices_endpoint.py | 7 |
 | Frontend | parseNfceQr.test.ts | 11 |
 | Frontend | QrReader.test.tsx | 6 |
-| **Total** | | **52** |
+| **Total** | | **80** |
+=======
+| Backend | test_db_receipts.py | 7 |
+| Backend | test_receipts_endpoint.py | 13 |
+| Frontend | parseNfceQr.test.ts | 11 |
+| Frontend | QrReader.test.tsx | 6 |
+| **Total** | | **74** |
+>>>>>>> 00dfb02 (feat: add receipts history endpoint)
