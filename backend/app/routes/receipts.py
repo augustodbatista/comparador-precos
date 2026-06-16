@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -52,37 +54,37 @@ class ReceiptData(BaseModel):
     invoice: InvoiceData
 
 
+class ReceiptHistoryItem(ReceiptData):
+    created_at: datetime | None = None
+
+
 # ---------------------------------------------------------------------------
 # GET /receipts
-# Retorna a lista de cupons salvos com paginação básica.
-# ---------------------------------------------------------------------------
-
-@router.get("/receipts", response_model=list[ReceiptData])
-async def list_saved_receipts(
-    request: Request,
-    page: int = Query(1, ge=1, description="Número da página (para listagem)"),
-    limit: int = Query(20, ge=1, le=100, description="Limite de cupons por página")
-) -> list[ReceiptData]:
-    """Lista o histórico de cupons salvos."""
-    db = request.app.state.db
-    results = await list_receipts(db, page=page, limit=limit)
-    return [ReceiptData(**doc) for doc in results]
-
-
-# ---------------------------------------------------------------------------
-# GET /receipts/by-url
-# Busca o HTML na SEFAZ, parseia com BS4 e retorna JSON estruturado.
+# Sem url: lista o histórico salvo no MongoDB.
+# Com url: busca o HTML na SEFAZ, parseia com BS4 e retorna JSON estruturado.
 # Não salva no banco — o frontend exibe os dados e o usuário decide salvar.
 # Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
 # ---------------------------------------------------------------------------
 
-@router.get("/receipts/by-url", response_model=ReceiptData)
-async def get_receipt_by_url(
+@router.get("/receipts", response_model=ReceiptData | list[ReceiptHistoryItem])
+async def get_receipts(
     request: Request,
-    url: str = Query(..., description="URL do QR Code da NFC-e")
-) -> ReceiptData:
-    """Busca um cupom pelo link da NFC-e (com consulta à SEFAZ se inédito)."""
+    url: str | None = Query(None, description="URL do QR Code da NFC-e"),
+    limit: int = Query(50, ge=1, le=100, description="Quantidade máxima de cupons no histórico"),
+    skip: int = Query(0, ge=0, description="Quantidade de cupons a pular no histórico"),
+) -> ReceiptData | list[ReceiptHistoryItem]:
+    """Lista o histórico salvo ou consulta uma URL de QR Code.
+
+    Mapeamento de erros:
+    - 422: URL não é uma NFC-e válida, ou HTML não reconhecido
+    - 502: SEFAZ retornou erro HTTP
+    - 504: Timeout ao acessar a SEFAZ
+    """
     db = request.app.state.db
+
+    if url is None:
+        docs = await list_receipts(db, limit=limit, skip=skip)
+        return [ReceiptHistoryItem(**doc) for doc in docs]
 
     nfce_data = parse_qr_nfce(url)
     if nfce_data is None:

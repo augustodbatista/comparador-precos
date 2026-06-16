@@ -2,12 +2,14 @@
 Testes unitários para app/db/repositories/receipts.py.
 Usa mongomock-motor como banco in-memory — sem conexão real ao Atlas.
 """
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from pymongo.errors import DuplicateKeyError
 
-from app.db.repositories.receipts import find_by_access_key, insert_receipt
+from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 
 SAMPLE_DOC = {
     "access_key": "31260621253729001979650140000347721508645310",
@@ -17,6 +19,10 @@ SAMPLE_DOC = {
     "totals": {"total": 7.99, "paid": 7.99, "items_count": 1},
     "invoice": {"model": "65", "series": "14", "number": "34772", "issued_at": "2026-06-07T11:36:44"},
 }
+
+
+def sample_doc(access_key: str) -> dict:
+    return {**SAMPLE_DOC, "access_key": access_key}
 
 
 @pytest_asyncio.fixture
@@ -58,3 +64,29 @@ class TestInsertReceipt:
         await insert_receipt(db, SAMPLE_DOC.copy())
         with pytest.raises(DuplicateKeyError):
             await insert_receipt(db, SAMPLE_DOC.copy())
+
+
+@pytest.mark.asyncio
+class TestListReceipts:
+    async def test_retorna_cupons_ordenados_por_created_at_desc(self, db):
+        older = {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc)}
+        newer = {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc)}
+        await db["receipts"].insert_many([older, newer])
+
+        result = await list_receipts(db)
+
+        assert [doc["access_key"] for doc in result] == ["2" * 44, "1" * 44]
+        assert "_id" not in result[0]
+
+    async def test_respeita_limit_e_skip(self, db):
+        docs = [
+            {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc)},
+            {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc)},
+            {**sample_doc("3" * 44), "created_at": datetime(2026, 6, 3, tzinfo=timezone.utc)},
+        ]
+        await db["receipts"].insert_many(docs)
+
+        result = await list_receipts(db, limit=1, skip=1)
+
+        assert len(result) == 1
+        assert result[0]["access_key"] == "2" * 44

@@ -18,6 +18,18 @@ async def find_by_access_key(db: AsyncIOMotorDatabase, access_key: str) -> dict 
     return doc
 
 
+async def list_receipts(db: AsyncIOMotorDatabase, *, limit: int = 50, skip: int = 0) -> list[dict]:
+    """Lista cupons salvos, do mais recente para o mais antigo."""
+    cursor = (
+        db[COLLECTION]
+        .find({}, {"_id": 0})
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    return await cursor.to_list(length=limit)
+
+
 async def insert_receipt(db: AsyncIOMotorDatabase, doc: dict) -> dict:
     """Insere um novo cupom. Lança DuplicateKeyError se access_key já existe."""
     to_insert = {**doc, "created_at": datetime.now(timezone.utc)}

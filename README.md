@@ -60,19 +60,32 @@ App disponível em `http://localhost:5173`
 
 ## API
 
+### `GET /receipts`
+
+Lista o histórico de cupons salvos no MongoDB.
+
+**Query params opcionais:**
+- `limit` — quantidade máxima de cupons (1–100, padrão 50)
+- `skip` — quantidade de cupons a pular (padrão 0)
+
+### `GET /receipts?url=...`
+
+Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados estruturados.
+
+**Exemplo:**
+```text
+/receipts?url=https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=...
+```
+
 ### `POST /receipts`
 
-Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados.
+Salva um cupom já parseado no MongoDB. É idempotente: retorna `201` quando cria e `200` quando o cupom já existe.
 
 **Request:**
 ```json
-{ "url": "https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=..." }
-```
-
-**Response 200:**
-```json
 {
   "access_key": "31260661585865266267650040002426521200179790",
+  "url": "https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=...",
   "issuer": { "name": "CASA RENA S/A", "cnpj": "21253729001979", "address": "AV. ARGENTINA, 270..." },
   "items": [
     { "code": "5173", "description": "SUCO D VALLE MA+S 1L", "qty": 1.0, "unit": "TP", "unit_price": 7.99, "total": 7.99 }
@@ -82,7 +95,7 @@ Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados.
 }
 ```
 
-**Erros:**
+**Erros de `GET /receipts?url=...`:**
 | Status | Significado |
 |---|---|
 | 422 | URL não é uma NFC-e válida |
@@ -92,7 +105,7 @@ Recebe a URL de uma NFC-e, busca o HTML na SEFAZ e retorna os dados.
 ## Testes
 
 ```bash
-# Backend (44 testes no total)
+# Backend (57 testes no total)
 cd backend && python -m pytest -v
 
 # Frontend
@@ -111,8 +124,9 @@ Veja [TASKS.md](TASKS.md) para o progresso detalhado.
 | 4. Endpoint POST /receipts | ✅ |
 | 5. Parser HTML (BeautifulSoup4) | ✅ |
 | 6. Normalização de nomes de produtos | ❌ |
-| 7. Persistência no MongoDB | ❌ |
-| 8. Endpoints de consulta de preços | ❌ |
+| 7. Persistência no MongoDB | ✅ |
+| 8a. Histórico de cupons (`GET /receipts`) | ✅ |
+| 8b. Endpoints de preços | ❌ |
 
 ## Licença
 
