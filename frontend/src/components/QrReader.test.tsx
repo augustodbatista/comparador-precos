@@ -216,6 +216,33 @@ describe('QrReader', () => {
     expect(screen.queryByTestId('save-btn')).not.toBeInTheDocument()
   })
 
+  it('informa que a nota já estava salva quando a API responde 200', async () => {
+    render(<QrReader />)
+
+    await act(async () => {
+      capturedOnScan!(VALID_URL)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('store-name')).toBeInTheDocument()
+    })
+
+    fetchMock.mockImplementationOnce(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(mockReceiptData)
+    }))
+
+    const saveBtn = screen.getByTestId('save-btn')
+    await userEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/já estava salva/i)
+    })
+
+    expect(screen.queryByTestId('save-btn')).not.toBeInTheDocument()
+  })
+
   it('exibe feedback de erro ao falhar no salvamento', async () => {
     render(<QrReader />)
 

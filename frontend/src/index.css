@@ -185,6 +185,12 @@ h2 {
   color: var(--primary-hover);
 }
 
+.alert-info {
+  background-color: #eff6ff;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+}
+
 /* Receipt Details styling */
 .receipt-header {
   border-bottom: 1px solid var(--border-color);

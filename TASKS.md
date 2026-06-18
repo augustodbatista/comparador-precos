@@ -183,6 +183,6 @@ Tela frontend para consultar o último preço e o menor preço registrado de um 
 | Backend | test_prices_endpoint.py | 7 |
 | Frontend | parseNfceQr.test.ts | 11 |
 | Frontend | App.test.tsx | 1 |
-| Frontend | QrReader.test.tsx | 7 |
+| Frontend | QrReader.test.tsx | 8 |
 | Frontend | PriceConsultation.test.tsx | 5 |
-| **Total** | | **88** |
+| **Total** | | **89** |
