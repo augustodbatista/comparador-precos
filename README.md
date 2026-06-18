@@ -16,7 +16,8 @@ Sistema colaborativo de comparação de preços via leitura de cupons fiscais el
 - **Suporte a múltiplos estados**: SP, RS, MG, BA e outros formatos de NFC-e
 - **Extração da chave de acesso** (44 dígitos) e URL da SEFAZ
 - **API backend** que busca o HTML da SEFAZ contornando CORS e bloqueios por User-Agent
-- **Abrir diretamente** a página da SEFAZ no browser após o scan
+- **Consulta de preços por código de produto** com último preço e menor preço registrado
+- **Salvar cupons parseados** no MongoDB para histórico e comparação
 
 ## Stack
 
@@ -34,7 +35,7 @@ Sistema colaborativo de comparação de preços via leitura de cupons fiscais el
 
 - Python 3.11+
 - Node.js 18+
-- MongoDB (opcional — ainda não usado)
+- MongoDB (necessário para persistência local)
 
 ### Backend
 
@@ -102,13 +103,21 @@ Salva um cupom já parseado no MongoDB. É idempotente: retorna `201` quando cri
 | 502 | SEFAZ retornou erro |
 | 504 | Timeout ao acessar a SEFAZ |
 
+### `GET /prices/latest?product_id=...`
+
+Retorna o último preço registrado para um produto.
+
+### `GET /prices/lowest?product_id=...`
+
+Retorna o menor preço já visto para um produto, desempatando pelo registro mais recente.
+
 ## Testes
 
 ```bash
-# Backend (57 testes no total)
+# Backend (64 testes no total)
 cd backend && python -m pytest -v
 
-# Frontend
+# Frontend (24 testes no total)
 cd frontend && npm run test:run
 ```
 
@@ -126,7 +135,9 @@ Veja [TASKS.md](TASKS.md) para o progresso detalhado.
 | 6. Normalização de nomes de produtos | ❌ |
 | 7. Persistência no MongoDB | ✅ |
 | 8a. Histórico de cupons (`GET /receipts`) | ✅ |
-| 8b. Endpoints de preços | ❌ |
+| 8b. Endpoints de preços | ✅ |
+| F. Integração frontend → API | ✅ |
+| F2. Tela de consulta de preços | ✅ |
 
 ## Licença
 
