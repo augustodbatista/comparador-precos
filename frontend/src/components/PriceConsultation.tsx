@@ -82,7 +82,7 @@ function PriceResultCard({
       </dl>
 
       <p className="price-meta">
-        Produto {price.product_id} - Cupom {price.receipt_access_key}
+        Produto {price.product_id} - Cupom final {price.receipt_access_key.slice(-8)}
       </p>
     </article>
   )
