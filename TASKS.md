@@ -141,6 +141,36 @@ Expor a comparação de preços de produtos via API.
 
 ---
 
+## Task F — Integração frontend → API ✅
+
+O leitor de QR Code consulta o backend, exibe os dados estruturados do cupom e permite salvar a NFC-e.
+
+**Arquivos modificados:**
+- `frontend/src/components/QrReader.tsx`
+- `frontend/src/components/QrReader.test.tsx`
+- `frontend/src/index.css`
+
+---
+
+## Task F2 — Tela de consulta de preços ✅
+
+Tela frontend para consultar o último preço e o menor preço registrado de um produto pelo código interno.
+
+**Endpoints consumidos:**
+- `GET /prices/latest?product_id=`
+- `GET /prices/lowest?product_id=`
+
+**Arquivos criados/modificados:**
+- `frontend/src/components/PriceConsultation.tsx`
+- `frontend/src/components/PriceConsultation.test.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/App.test.tsx`
+- `frontend/src/config/api.ts`
+- `frontend/src/vite-env.d.ts`
+- `frontend/src/index.css`
+
+---
+
 ## Totais de testes
 
 | Módulo | Arquivo | Testes |
@@ -148,17 +178,11 @@ Expor a comparação de preços de produtos via API.
 | Backend | test_qr_parser.py | 14 |
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
-<<<<<<< HEAD
-| Backend | test_db_receipts.py | 5 |
-| Backend | test_receipts_endpoint.py | 14 |
-| Backend | test_prices_endpoint.py | 7 |
-| Frontend | parseNfceQr.test.ts | 11 |
-| Frontend | QrReader.test.tsx | 6 |
-| **Total** | | **80** |
-=======
 | Backend | test_db_receipts.py | 7 |
 | Backend | test_receipts_endpoint.py | 13 |
+| Backend | test_prices_endpoint.py | 7 |
 | Frontend | parseNfceQr.test.ts | 11 |
-| Frontend | QrReader.test.tsx | 6 |
-| **Total** | | **74** |
->>>>>>> 00dfb02 (feat: add receipts history endpoint)
+| Frontend | App.test.tsx | 1 |
+| Frontend | QrReader.test.tsx | 7 |
+| Frontend | PriceConsultation.test.tsx | 5 |
+| **Total** | | **88** |

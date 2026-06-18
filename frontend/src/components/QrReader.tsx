@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
+import { API_URL } from '../config/api'
 
-// @ts-ignore
-const API_URL = (import.meta.env && import.meta.env.VITE_API_URL) || 'https://comparador-precos-yiqd.onrender.com'
 const SCANNER_ID = 'qr-reader-container'
 
 export interface IssuerData {
