@@ -87,7 +87,7 @@ function ResultView({
   onReset: () => void
   onSave: () => void
   isSaving: boolean
-  saveStatus: 'idle' | 'success' | 'error'
+  saveStatus: 'idle' | 'success' | 'already_saved' | 'error'
   saveError: string | null
 }) {
   return (
@@ -157,6 +157,12 @@ function ResultView({
         </div>
       )}
 
+      {saveStatus === 'already_saved' && (
+        <div className="alert alert-info" role="alert" style={{ marginBottom: '1.5rem' }}>
+          <strong>Esta nota já estava salva.</strong> Nenhum cupom duplicado foi criado.
+        </div>
+      )}
+
       {saveStatus === 'error' && (
         <div className="alert alert-danger" role="alert" style={{ marginBottom: '1.5rem' }}>
           <strong>Erro:</strong> {saveError || 'Não foi possível salvar a nota fiscal.'}
@@ -164,7 +170,7 @@ function ResultView({
       )}
 
       <div className="actions-grid">
-        {saveStatus !== 'success' && (
+        {saveStatus !== 'success' && saveStatus !== 'already_saved' && (
           <button
             className="btn btn-primary"
             onClick={onSave}
@@ -187,7 +193,7 @@ export function QrReader() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'already_saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [scanKey, setScanKey] = useState(0)
 
@@ -256,7 +262,8 @@ export function QrReader() {
         throw new Error(errData.detail || `Erro ao salvar (${response.status})`)
       }
 
-      setSaveStatus('success')
+      // 201: cupom salvo agora | 200: cupom já estava no banco (idempotente)
+      setSaveStatus(response.status === 201 ? 'success' : 'already_saved')
     } catch (err: any) {
       setSaveError(err.message || 'Erro de conexão ao salvar a nota.')
       setSaveStatus('error')
