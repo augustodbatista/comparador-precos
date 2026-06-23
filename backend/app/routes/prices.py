@@ -1,9 +1,14 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from app.db.repositories.prices import get_latest_price, get_lowest_price
+from app.db.repositories.prices import get_all_products, get_latest_price, get_lowest_price
 
 router = APIRouter()
+
+
+class ProductItem(BaseModel):
+    description: str        # descrição bruta original da SEFAZ (sempre presente)
+    normalized_name: str | None  # nome limpo pelo Ollama (None se não normalizado)
 
 
 class PriceResponse(BaseModel):
@@ -32,6 +37,18 @@ class PriceResponse(BaseModel):
     # Rastreabilidade
     receipt_access_key: str
     receipt_url: str       # link direto ao cupom na SEFAZ
+
+
+@router.get("/products", response_model=list[ProductItem])
+async def list_products(request: Request) -> list[ProductItem]:
+    """Lista todos os produtos únicos salvos no banco.
+
+    Usado pelo frontend para exibir os produtos disponíveis para consulta de preços,
+    eliminando a necessidade de o usuário saber o código ou nome exato de memória.
+    """
+    db = request.app.state.db
+    products = await get_all_products(db)
+    return [ProductItem(**p) for p in products]
 
 
 @router.get("/prices/latest", response_model=PriceResponse)
