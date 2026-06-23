@@ -21,11 +21,12 @@ async def lifespan(app: FastAPI):
 
     if not is_mock:
         try:
-            await asyncio.wait_for(client.admin.command('ping'), timeout=1.5)
+            await asyncio.wait_for(client.admin.command('ping'), timeout=10)
             logger.info("Conexão com o MongoDB estabelecida com sucesso!")
         except Exception as e:
-            logger.error(f"Falha crítica na conexão com o MongoDB: {e}")
-            raise RuntimeError("Não foi possível conectar ao banco de dados MongoDB.") from e
+            # Warn mas não derruba o servidor — requests individuais vão falhar
+            # se o banco estiver inacessível, sem impedir o startup.
+            logger.warning(f"Ping ao MongoDB falhou no startup: {e}")
 
     app.state.motor_client = client
     app.state.db = get_db(client)

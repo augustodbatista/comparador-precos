@@ -7,16 +7,31 @@ router = APIRouter()
 
 
 class PriceResponse(BaseModel):
-    product_id: str
-    description: str
+    # Identificação do produto
+    product_id: str        # normalized_name usado na busca
+    description: str       # descrição bruta original da SEFAZ
+    normalized_name: str | None  # nome limpo gerado pelo Ollama
+
+    # Dados do item
     unit_price: float
     quantity: float
     unit: str
     total_value: float
-    purchase_date: str
+
+    # Dados da nota fiscal
+    purchase_date: str     # invoice.issued_at (ISO 8601)
+    invoice_number: str
+    invoice_series: str
+    invoice_model: str
+
+    # Dados do estabelecimento
     issuer_name: str
     issuer_cnpj: str
+    issuer_address: str    # identifica a filial específica da rede
+
+    # Rastreabilidade
     receipt_access_key: str
+    receipt_url: str       # link direto ao cupom na SEFAZ
 
 
 @router.get("/prices/latest", response_model=PriceResponse)
