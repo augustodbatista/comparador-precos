@@ -1,10 +1,12 @@
 import re
-from dataclasses import dataclass
+from typing import NamedTuple
 from urllib.parse import urlparse, parse_qs
 
 
-@dataclass(frozen=True)
-class NfceData:
+class NfceData(NamedTuple):
+    # NamedTuple em vez de @dataclass: mesma interface (acesso por atributo, equality,
+    # imutabilidade), zero dependências extras — dataclasses é stdlib também, mas
+    # NamedTuple é mais leve e é o idioma Python para "struct pequena e imutável".
     url: str
     access_key: str
 

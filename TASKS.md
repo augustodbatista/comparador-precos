@@ -80,14 +80,31 @@ Suporte atual: MG (portalsped.fazenda.mg.gov.br). SP será adicionado com fixtur
 
 ---
 
-## Task 6 — Normalização de nomes de produtos ❌
+## Task 6 — Normalização de nomes de produtos ✅
 
-Limpar e padronizar as descrições brutas da SEFAZ para comparação entre lojas.
-Estratégia ainda indefinida — pode usar heurísticas, fuzzy matching ou LLM.
+Normaliza as descrições brutas da SEFAZ (ex: "LEITE MOCA 395G") via Ollama (qwen2.5:7b)
+no momento do `POST /receipts`. O normalized_name viabiliza comparação cross-store:
+produtos iguais em lojas diferentes têm codes internos distintos mas o mesmo normalized_name.
 
-**Arquivos planejados:**
-- `backend/app/services/normalizer.py`
-- `backend/tests/test_normalizer.py`
+**Decisões:**
+- Ollama como serviço separado local (`OLLAMA_URL=http://localhost:11434`)
+- Batch: todos os itens do cupom em uma única chamada (evita N round-trips)
+- `format: json` na API do Ollama garante saída JSON válida
+- Fallback silencioso: Ollama fora → normalized_name = description original, insert não trava
+- product_id nas queries de preço passou de código interno para normalized_name (cross-store)
+- PriceResponse agora expõe todos os campos disponíveis: endereço, invoice, receipt_url
+
+**Arquivos criados:**
+- `backend/app/services/normalizer.py` — normalize_items() com fallback
+- `backend/tests/test_normalizer.py` — 5 testes (mock httpx)
+
+**Arquivos modificados:**
+- `backend/app/routes/receipts.py` — ItemData.normalized_name + POST chama normalizer
+- `backend/app/routes/prices.py` — PriceResponse completo (endereço, invoice, url)
+- `backend/app/db/repositories/prices.py` — query por normalized_name, _build_price_result
+- `backend/.env` — OLLAMA_URL adicionado
+- `backend/tests/test_prices_endpoint.py` — fixtures com normalized_name, queries por nome
+- `backend/tests/test_receipts_endpoint.py` — mock normalize_items nos testes POST
 
 ---
 
@@ -179,10 +196,11 @@ Tela frontend para consultar o último preço e o menor preço registrado de um 
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
 | Backend | test_db_receipts.py | 7 |
+| Backend | test_normalizer.py | 5 |
 | Backend | test_receipts_endpoint.py | 13 |
 | Backend | test_prices_endpoint.py | 7 |
 | Frontend | parseNfceQr.test.ts | 11 |
 | Frontend | App.test.tsx | 1 |
 | Frontend | QrReader.test.tsx | 8 |
 | Frontend | PriceConsultation.test.tsx | 5 |
-| **Total** | | **89** |
+| **Total** | | **94** |

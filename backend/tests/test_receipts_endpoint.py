@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+# normalize_items é mockado em todos os testes POST para evitar chamada real ao Ollama.
+# O mock retorna as descrições originais (passthrough), o que é idêntico ao fallback.
+async def _normalize_passthrough(descriptions):
+    return descriptions
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -144,19 +149,22 @@ class TestPostReceipts:
 
     async def test_retorna_201_ao_salvar_novo_cupom(self, client):
         body = await self._get_parsed_body(client)
-        response = await client.post("/receipts", json=body)
+        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+            response = await client.post("/receipts", json=body)
         assert response.status_code == 201
         assert response.json()["access_key"] == VALID_KEY
 
     async def test_retorna_200_quando_cupom_ja_existe(self, client):
         body = await self._get_parsed_body(client)
-        await client.post("/receipts", json=body)
-        response = await client.post("/receipts", json=body)
+        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+            await client.post("/receipts", json=body)
+            response = await client.post("/receipts", json=body)
         assert response.status_code == 200
 
     async def test_dados_persistidos_no_banco(self, client):
         body = await self._get_parsed_body(client)
-        await client.post("/receipts", json=body)
+        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+            await client.post("/receipts", json=body)
         doc = await app.state.db["receipts"].find_one({"access_key": VALID_KEY})
         assert doc is not None
         assert doc["issuer"]["cnpj"] == "21253729001979"
