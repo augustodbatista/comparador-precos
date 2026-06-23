@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
     if not is_mock:
         try:
-            await asyncio.wait_for(client.admin.command('ping'), timeout=1.5)
+            await asyncio.wait_for(client.admin.command('ping'), timeout=10)
             logger.info("Conexão com o MongoDB estabelecida com sucesso!")
         except Exception as e:
             logger.error(f"Falha crítica na conexão com o MongoDB: {e}")
