@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { API_URL } from '../config/api'
 
 // Produto retornado por GET /products
@@ -132,7 +132,7 @@ export function PriceConsultation() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchProducts().then(setProducts)
+    fetchProducts().then(setProducts).catch(() => {})
   }, [])
 
   const filtered = filter.trim().length >= 1
