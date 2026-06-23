@@ -31,10 +31,12 @@ VALID_KEY = "31260661585865266267650040002426521200179790"
 
 
 def receipt_doc(access_key: str, created_at: datetime) -> dict:
+    parsed = parse_nfce_html(MG_HTML)
+    parsed.pop("items", None)  # items vão para 'prices', não para 'receipts'
     return {
         "access_key": access_key,
         "url": f"https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p={access_key}|3|1",
-        **parse_nfce_html(MG_HTML),
+        **parsed,
         "created_at": created_at,
     }
 
@@ -44,6 +46,8 @@ async def client():
     mock_client = AsyncMongoMockClient()
     mock_db = mock_client["test_db"]
     await mock_db["receipts"].create_index("access_key", unique=True)
+    await mock_db["products"].create_index("normalized_name", unique=True)
+    await mock_db["prices"].create_index("product_id")
     app.state.db = mock_db
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -165,9 +169,21 @@ class TestPostReceipts:
         body = await self._get_parsed_body(client)
         with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
             await client.post("/receipts", json=body)
+
+        # Cabeçalho salvo em 'receipts' (sem items[])
         doc = await app.state.db["receipts"].find_one({"access_key": VALID_KEY})
         assert doc is not None
         assert doc["issuer"]["cnpj"] == "21253729001979"
+        assert "items" not in doc
+
+        # Itens salvos em 'prices'
+        prices = await app.state.db["prices"].find({"receipt_id": VALID_KEY}).to_list(None)
+        assert len(prices) == 15  # MG HTML tem 15 itens
+
+        # Produto cadastrado em 'products' — um por normalized_name único
+        products = await app.state.db["products"].find({}).to_list(None)
+        unique_ids = {p["product_id"] for p in prices}
+        assert len(products) == len(unique_ids)
 
     async def test_retorna_422_sem_body(self, client):
         response = await client.post("/receipts")

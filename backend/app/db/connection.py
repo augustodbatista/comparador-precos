@@ -19,3 +19,12 @@ def get_client() -> AsyncIOMotorClient:
 def get_db(client: AsyncIOMotorClient) -> AsyncIOMotorDatabase:
     db_name = os.getenv("DB_NAME", "comparador_precos")
     return client[db_name]
+
+
+async def create_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Cria os índices das 3 collections. Idempotente — seguro chamar a cada startup."""
+    await db["receipts"].create_index("access_key", unique=True)
+    await db["products"].create_index("normalized_name", unique=True)
+    await db["prices"].create_index("product_id")
+    await db["prices"].create_index([("product_id", 1), ("purchase_date", -1)])
+    await db["prices"].create_index([("product_id", 1), ("unit_price", 1), ("purchase_date", -1)])

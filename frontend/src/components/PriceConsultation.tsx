@@ -3,8 +3,7 @@ import { API_URL } from '../config/api'
 
 // Produto retornado por GET /products
 interface ProductItem {
-  description: string
-  normalized_name: string | null
+  normalized_name: string
 }
 
 // Resposta completa de GET /prices/latest e /prices/lowest
@@ -40,15 +39,12 @@ function formatDate(value: string) {
   return date.toLocaleString('pt-BR')
 }
 
-// Retorna o label do produto: normalized_name se diferente da description, senão description
 function productLabel(p: ProductItem): string {
-  if (p.normalized_name && p.normalized_name !== p.description) return p.normalized_name
-  return p.description
+  return p.normalized_name
 }
 
-// Retorna a chave de busca usada na query de preços: normalized_name ou description
 function searchKey(p: ProductItem): string {
-  return p.normalized_name ?? p.description
+  return p.normalized_name
 }
 
 async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData | null> {
@@ -213,10 +209,7 @@ export function PriceConsultation() {
                     fontSize: '0.9rem',
                   }}
                 >
-                  <div>{productLabel(p)}</div>
-                  {p.normalized_name && p.normalized_name !== p.description && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.description}</div>
-                  )}
+                  {productLabel(p)}
                 </button>
               </li>
             ))}
