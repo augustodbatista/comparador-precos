@@ -133,8 +133,7 @@ export function PriceConsultation() {
 
   const filtered = filter.trim().length >= 1
     ? products.filter(p =>
-        productLabel(p).toLowerCase().includes(filter.toLowerCase()) ||
-        p.description.toLowerCase().includes(filter.toLowerCase())
+        productLabel(p).toLowerCase().includes(filter.toLowerCase())
       )
     : products
 
