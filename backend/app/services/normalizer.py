@@ -48,6 +48,8 @@ async def normalize_items(descriptions: list[str]) -> list[str]:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(
                 f"{_OLLAMA_URL}/api/chat",
+                # ponytail: ngrok free tier bloqueia requests não-browser sem esse header
+                headers={"ngrok-skip-browser-warning": "true"},
                 json={
                     "model": _MODEL,
                     # format=json força o modelo a emitir JSON válido
