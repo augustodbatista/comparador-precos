@@ -20,6 +20,37 @@
 
 Essas etapas só precisam ser feitas na primeira vez ou se formatar a máquina.
 
+### 2.0 Verificar o que já está instalado
+
+Antes de instalar qualquer coisa, rode esses comandos no PowerShell para ver o que já existe:
+
+```powershell
+python --version
+```
+Deve aparecer `Python 3.11.x`. Se não aparecer, siga o passo 2.1.
+
+```powershell
+node --version
+```
+Deve aparecer `v18.x.x` ou superior. Se não aparecer, siga o passo 2.2.
+
+```powershell
+ollama list
+```
+Deve listar os modelos instalados, incluindo `qwen2.5:7b`. Se der erro, siga o passo 2.3.
+
+```powershell
+[System.Environment]::GetEnvironmentVariable("OLLAMA_ORIGINS", "User")
+```
+Deve aparecer `*`. Se estiver vazio, siga o passo 2.4.
+
+```powershell
+ngrok version
+```
+Deve aparecer a versão do ngrok. Se der erro, siga o passo 2.5.
+
+
+
 ### 2.1 Instalar o Python 3.11
 
 1. Acesse https://www.python.org/downloads/release/python-3119/
