@@ -266,7 +266,7 @@ export function PriceConsultation() {
             type="button"
             onClick={handleSearch}
             disabled={!selected || status === 'loading'}
-            style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed' }}
+            style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px' }}
           >
             Buscar
           </button>
