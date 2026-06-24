@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import { API_URL } from '../config/api'
 
-// Produto retornado por GET /products
 interface ProductItem {
   normalized_name: string
 }
 
-// Resposta completa de GET /prices/latest e /prices/lowest
 export interface PriceData {
   product_id: string
   description: string
@@ -39,11 +37,13 @@ function formatDate(value: string) {
   return date.toLocaleString('pt-BR')
 }
 
-function productLabel(p: ProductItem): string {
-  return p.normalized_name
+function formatDateShort(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString('pt-BR')
 }
 
-function searchKey(p: ProductItem): string {
+function productLabel(p: ProductItem): string {
   return p.normalized_name
 }
 
@@ -54,6 +54,12 @@ async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.detail || `Erro ao consultar preços (${response.status})`)
   }
+  return response.json()
+}
+
+async function fetchHistory(productId: string): Promise<PriceData[]> {
+  const response = await fetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
+  if (!response.ok) return []
   return response.json()
 }
 
@@ -126,6 +132,9 @@ export function PriceConsultation() {
   const [latestPrice, setLatestPrice] = useState<PriceData | null>(null)
   const [lowestPrice, setLowestPrice] = useState<PriceData | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [history, setHistory] = useState<PriceData[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(() => {})
@@ -137,16 +146,13 @@ export function PriceConsultation() {
       )
     : products
 
-  async function handleSearch(product: ProductItem) {
-    setSelected(product)
-    setFilter(productLabel(product))
+  async function search(key: string) {
     setStatus('loading')
     setErrorMessage(null)
     setLatestPrice(null)
     setLowestPrice(null)
 
     try {
-      const key = searchKey(product)
       const [latest, lowest] = await Promise.all([
         fetchPrice('latest', key),
         fetchPrice('lowest', key),
@@ -160,18 +166,50 @@ export function PriceConsultation() {
     }
   }
 
-  function handleFilterChange(value: string) {
-    setFilter(value)
-    // Se o usuário editar depois de selecionar, limpa a seleção
-    if (selected && value !== productLabel(selected)) {
-      setSelected(null)
-      setStatus('idle')
-      setLatestPrice(null)
-      setLowestPrice(null)
-    }
+  async function handleSelect(product: ProductItem) {
+    setSelected(product)
+    setFilter(productLabel(product))
+    setHistory([])
+    setShowHistory(false)
+    await search(product.normalized_name)
   }
 
-  const showList = !selected && filtered.length > 0
+  async function handleSearch() {
+    if (!selected) return
+    setHistory([])
+    setShowHistory(false)
+    await search(selected.normalized_name)
+  }
+
+  function handleClear() {
+    setFilter('')
+    setSelected(null)
+    setStatus('idle')
+    setLatestPrice(null)
+    setLowestPrice(null)
+    setErrorMessage(null)
+    setHistory([])
+    setShowHistory(false)
+  }
+
+  async function handleToggleHistory() {
+    if (showHistory) {
+      setShowHistory(false)
+      return
+    }
+    if (history.length > 0) {
+      setShowHistory(true)
+      return
+    }
+    if (!selected) return
+    setLoadingHistory(true)
+    const data = await fetchHistory(selected.normalized_name)
+    setHistory(data)
+    setLoadingHistory(false)
+    setShowHistory(true)
+  }
+
+  const showList = !selected && filter.trim().length >= 1 && filtered.length > 0
 
   return (
     <>
@@ -185,22 +223,30 @@ export function PriceConsultation() {
           <input
             id="product-filter"
             value={filter}
-            onChange={e => handleFilterChange(e.target.value)}
+            onChange={e => {
+              const value = e.target.value
+              setFilter(value)
+              if (selected && value !== productLabel(selected)) {
+                setSelected(null)
+                setStatus('idle')
+                setLatestPrice(null)
+                setLowestPrice(null)
+              }
+            }}
             placeholder={products.length === 0 ? 'Carregando produtos...' : 'Digite para filtrar...'}
             autoComplete="off"
             disabled={status === 'loading'}
-            style={{ width: '100%' }}
+            style={{ width: '100%', fontSize: '1.1rem', height: '2.8rem', padding: '0 0.75rem' }}
           />
         </div>
 
-        {/* Lista de produtos disponíveis */}
         {showList && (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
             {filtered.map((p, i) => (
               <li key={i}>
                 <button
                   type="button"
-                  onClick={() => handleSearch(p)}
+                  onClick={() => handleSelect(p)}
                   style={{
                     width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem',
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -214,6 +260,25 @@ export function PriceConsultation() {
             ))}
           </ul>
         )}
+
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={handleSearch}
+            disabled={!selected || status === 'loading'}
+            style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed' }}
+          >
+            Buscar
+          </button>
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={status === 'loading'}
+            style={{ padding: '0.7rem 1rem', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-secondary, #eee)', border: '1px solid var(--border)', borderRadius: '6px' }}
+          >
+            Limpar
+          </button>
+        </div>
 
         {products.length === 0 && (
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
@@ -242,10 +307,47 @@ export function PriceConsultation() {
       )}
 
       {status === 'success' && (
-        <section className="price-results" aria-label="Resultado da consulta">
-          {latestPrice && <PriceResultCard title="Último preço" price={latestPrice} testId="latest-price-card" />}
-          {lowestPrice && <PriceResultCard title="Menor preço" price={lowestPrice} testId="lowest-price-card" />}
-        </section>
+        <>
+          <section className="price-results" aria-label="Resultado da consulta">
+            {lowestPrice && <PriceResultCard title="Menor preço" price={lowestPrice} testId="lowest-price-card" />}
+            {latestPrice && <PriceResultCard title="Último preço" price={latestPrice} testId="latest-price-card" />}
+          </section>
+
+          <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleToggleHistory}
+              disabled={loadingHistory}
+              style={{ padding: '0.6rem 1.2rem', fontSize: '0.95rem', cursor: 'pointer' }}
+            >
+              {loadingHistory ? 'Carregando...' : showHistory ? 'Ocultar histórico' : 'Ver todos os preços'}
+            </button>
+          </div>
+
+          {showHistory && history.length > 0 && (
+            <section className="card" style={{ marginTop: '0.75rem' }}>
+              <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem' }}>Histórico de preços</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
+                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Preço unit.</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>{formatDateShort(h.purchase_date)}</td>
+                      <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>{formatCurrency(h.unit_price)}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{h.issuer_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </>
       )}
     </>
   )
