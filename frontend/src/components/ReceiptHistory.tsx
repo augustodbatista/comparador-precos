@@ -57,7 +57,7 @@ function Section({ title, expanded, onToggle, badge, children }: {
 }) {
   return (
     <div className="card" style={{ marginBottom: '0.75rem' }}>
-      <button type="button" onClick={onToggle} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <button type="button" onClick={onToggle} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-primary)' }}>
         <span style={{ fontWeight: 600, fontSize: '1rem' }}>{title}</span>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           {badge && <span style={{ background: '#2563eb', color: '#fff', borderRadius: '99px', padding: '0.1rem 0.5rem', fontSize: '0.75rem' }}>{badge}</span>}
@@ -78,7 +78,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptData }) {
 
   return (
     <article className="card" style={{ marginBottom: '0.75rem' }}>
-      <button type="button" onClick={() => setExpanded(e => !e)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+      <button type="button" onClick={() => setExpanded(e => !e)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, color: 'var(--text-primary)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: '1rem' }}>{receipt.issuer.name}</div>
@@ -87,7 +87,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptData }) {
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontWeight: 700, color: '#2563eb' }}>{formatCurrency(receipt.totals.paid)}</div>
+            <div style={{ fontWeight: 700, color: 'var(--secondary)' }}>{formatCurrency(receipt.totals.paid)}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {receipt.totals.items_count} {receipt.totals.items_count === 1 ? 'item' : 'itens'}
             </div>
@@ -99,23 +99,23 @@ function ReceiptCard({ receipt }: { receipt: ReceiptData }) {
       </button>
 
       {expanded && (
-        <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+        <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>Produto</th>
-                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>Qtd</th>
-                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>Unit.</th>
-                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>Total</th>
+              <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem', color: 'var(--text-secondary)' }}>Produto</th>
+                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>Qtd</th>
+                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>Unit.</th>
+                <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>Total</th>
               </tr>
             </thead>
             <tbody>
               {receipt.items.map((item, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '0.3rem 0.4rem' }}>{(item as any).normalized_name || item.description}</td>
-                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>{item.qty} {item.unit}</td>
-                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>{formatCurrency(item.unit_price)}</td>
-                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap' }}>{formatCurrency(item.total)}</td>
+                <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '0.3rem 0.4rem', color: 'var(--text-primary)' }}>{(item as any).normalized_name || item.description}</td>
+                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{item.qty} {item.unit}</td>
+                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{formatCurrency(item.unit_price)}</td>
+                  <td style={{ textAlign: 'right', padding: '0.3rem 0.4rem', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{formatCurrency(item.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -198,15 +198,15 @@ export function ReceiptHistory() {
           <>
             {/* Totais gerais */}
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-secondary, #f8f9fa)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-subtle)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total gasto</div>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#2563eb' }}>{formatCurrency(summary.total)}</div>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--secondary)' }}>{formatCurrency(summary.total)}</div>
               </div>
-              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-secondary, #f8f9fa)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-subtle)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Ticket médio</div>
                 <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{formatCurrency(summary.ticketMedio)}</div>
               </div>
-              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-secondary, #f8f9fa)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+              <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg-subtle)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Compras</div>
                 <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{filtered.length}</div>
               </div>
@@ -216,7 +216,7 @@ export function ReceiptHistory() {
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ fontWeight: 600, marginBottom: '0.4rem', fontSize: '0.9rem' }}>Por loja</div>
               {summary.byStore.map(([store, total], i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid var(--border)', fontSize: '0.875rem' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)', fontSize: '0.875rem' }}>
                   <span>{store}</span>
                   <span style={{ fontWeight: 600 }}>{formatCurrency(total)}</span>
                 </div>
@@ -227,7 +227,7 @@ export function ReceiptHistory() {
             <div>
               <div style={{ fontWeight: 600, marginBottom: '0.4rem', fontSize: '0.9rem' }}>Por mês</div>
               {summary.byMonth.map(([month, total], i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid var(--border)', fontSize: '0.875rem' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: '1px solid var(--border-color)', fontSize: '0.875rem' }}>
                   <span>{formatMonth(month)}</span>
                   <span style={{ fontWeight: 600 }}>{formatCurrency(total)}</span>
                 </div>
@@ -246,26 +246,26 @@ export function ReceiptHistory() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Loja</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Loja</label>
             <input
               value={storeFilter}
               onChange={e => setStoreFilter(e.target.value)}
               placeholder="Ex: Casa Rena"
-              style={{ width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.95rem' }}
+              style={{ width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.95rem', background: 'var(--card-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px' }}
             />
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>De</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.5rem', fontSize: '0.9rem' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>De</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.5rem', fontSize: '0.9rem', background: 'var(--card-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Até</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.5rem', fontSize: '0.9rem' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Até</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: '100%', padding: '0.5rem 0.5rem', fontSize: '0.9rem', background: 'var(--card-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px' }} />
             </div>
           </div>
           {activeFilters > 0 && (
-            <button type="button" onClick={() => { setStoreFilter(''); setDateFrom(''); setDateTo('') }} style={{ alignSelf: 'flex-start', background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+            <button type="button" onClick={() => { setStoreFilter(''); setDateFrom(''); setDateTo('') }} style={{ alignSelf: 'flex-start', background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
               Limpar filtros
             </button>
           )}

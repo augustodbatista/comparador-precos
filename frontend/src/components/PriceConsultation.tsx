@@ -304,15 +304,15 @@ export function PriceConsultation() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
-                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Último preço</th>
-                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Loja</th>
+                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Último preço</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Data</th>
                   </tr>
                 </thead>
                 <tbody>
                   {byStore.map((s, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.4rem 0.5rem' }}>{s.store}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-primary)' }}>{s.store}</td>
                       <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem', fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#2563eb' : undefined }}>{formatCurrency(s.price)}</td>
                       <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{formatDateShort(s.date)}</td>
                     </tr>
@@ -330,16 +330,16 @@ export function PriceConsultation() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
-                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Preço unit.</th>
-                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Data</th>
+                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Preço unit.</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>Loja</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((h, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.4rem 0.5rem' }}>{formatDateShort(h.purchase_date)}</td>
-                      <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>{formatCurrency(h.unit_price)}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-primary)' }}>{formatDateShort(h.purchase_date)}</td>
+                      <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem', color: 'var(--text-primary)' }}>{formatCurrency(h.unit_price)}</td>
                       <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{h.issuer_name}</td>
                     </tr>
                   ))}
