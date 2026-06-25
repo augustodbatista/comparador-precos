@@ -99,6 +99,7 @@ function ResultView({
   isSaving,
   saveStatus,
   saveError,
+  ollamaStatus,
 }: {
   receipt: ReceiptData
   onReset: () => void
@@ -106,6 +107,7 @@ function ResultView({
   isSaving: boolean
   saveStatus: 'idle' | 'success' | 'already_saved' | 'error'
   saveError: string | null
+  ollamaStatus: 'unknown' | 'ok' | 'offline'
 }) {
   return (
     <div className="card">
@@ -171,6 +173,21 @@ function ResultView({
         </div>
       </div>
 
+      {/* Badge de status da normalização Ollama */}
+      {ollamaStatus !== 'unknown' && (
+        <div role="status" data-testid="ollama-badge" style={{
+          padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-md)',
+          fontSize: '0.875rem', fontWeight: 500, marginBottom: '1rem',
+          ...(ollamaStatus === 'ok'
+            ? { background: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }
+            : { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' }),
+        }}>
+          {ollamaStatus === 'ok'
+            ? '✅ Normalização ativa'
+            : '⚠️ Normalização inativa — produtos serão salvos sem normalização'}
+        </div>
+      )}
+
       {/* Alertas de resultado do salvamento */}
       {saveStatus === 'success' && (
         <div className="alert alert-success" role="alert" style={{ marginBottom: '1.5rem' }}>
@@ -219,6 +236,17 @@ export function QrReader() {
   const [status, setStatus] = useState<'scanning' | 'loading' | 'success' | 'error'>('scanning')
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Status da normalização Ollama — 'unknown' enquanto o health check está pendente
+  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'offline'>('unknown')
+
+  useEffect(() => {
+    if (status !== 'success') return
+    fetch(`${API_URL}/health/ollama`)
+      .then(r => r.json())
+      .then(data => setOllamaStatus(data.status === 'ok' ? 'ok' : 'offline'))
+      .catch(() => setOllamaStatus('offline'))
+  }, [status])
 
   // Estados do salvamento (separados do status principal para não esconder o recibo)
   const [isSaving, setIsSaving] = useState(false)
@@ -325,6 +353,7 @@ export function QrReader() {
     setErrorMsg(null)
     setSaveStatus('idle')
     setSaveError(null)
+    setOllamaStatus('unknown')
     setStatus('scanning')
     setScanKey((k) => k + 1)
   }
@@ -364,6 +393,7 @@ export function QrReader() {
         isSaving={isSaving}
         saveStatus={saveStatus}
         saveError={saveError}
+        ollamaStatus={ollamaStatus}
       />
     )
   }

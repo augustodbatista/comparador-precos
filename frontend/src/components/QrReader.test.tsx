@@ -56,47 +56,34 @@ vi.mock('html5-qrcode', () => ({
   })),
 }))
 
-const fetchMock = vi.fn().mockImplementation((_url, init) => {
-  const signal = init?.signal;
-  return new Promise((resolve, reject) => {
-    if (signal) {
-      if (signal.aborted) {
-        return reject(new DOMException('The user aborted a request.', 'AbortError'));
-      }
-      signal.addEventListener('abort', () => {
-        reject(new DOMException('The user aborted a request.', 'AbortError'));
-      });
-    }
-    resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(mockReceiptData)
-    });
-  });
-})
+const fetchMock = vi.fn()
 
 vi.stubGlobal('fetch', fetchMock)
+
+function makeReceiptFetch(init?: RequestInit) {
+  const signal = init?.signal
+  return new Promise<object>((resolve, reject) => {
+    if (signal) {
+      if (signal.aborted) return reject(new DOMException('The user aborted a request.', 'AbortError'))
+      signal.addEventListener('abort', () =>
+        reject(new DOMException('The user aborted a request.', 'AbortError')))
+    }
+    resolve({ ok: true, status: 200, json: () => Promise.resolve(mockReceiptData) })
+  })
+}
 
 beforeEach(() => {
   capturedOnScan = null
   fetchMock.mockClear()
-  fetchMock.mockImplementation((_url, init) => {
-    const signal = init?.signal;
-    return new Promise((resolve, reject) => {
-      if (signal) {
-        if (signal.aborted) {
-          return reject(new DOMException('The user aborted a request.', 'AbortError'));
-        }
-        signal.addEventListener('abort', () => {
-          reject(new DOMException('The user aborted a request.', 'AbortError'));
-        });
-      }
-      resolve({
+  fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.includes('/health/ollama')) {
+      return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(mockReceiptData)
-      });
-    });
+        json: () => Promise.resolve({ status: 'ok', url: 'http://localhost:11434' }),
+      })
+    }
+    return makeReceiptFetch(init)
   })
 })
 
@@ -268,5 +255,32 @@ describe('QrReader', () => {
     })
 
     expect(screen.getByTestId('save-btn')).toBeInTheDocument()
+  })
+
+  it('exibe badge verde quando Ollama está acessível', async () => {
+    render(<QrReader />)
+    await act(async () => { capturedOnScan!(VALID_URL) })
+    await waitFor(() => {
+      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/Normalização ativa/i)
+    })
+  })
+
+  it('exibe badge amarelo quando Ollama está inacessível', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/health/ollama')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ status: 'offline', url: 'http://localhost:11434' }),
+        })
+      }
+      return makeReceiptFetch(init)
+    })
+
+    render(<QrReader />)
+    await act(async () => { capturedOnScan!(VALID_URL) })
+    await waitFor(() => {
+      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/Normalização inativa/i)
+    })
   })
 })

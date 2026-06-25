@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -223,3 +224,30 @@ class TestPricesEndpoints:
         names = [p["normalized_name"] for p in body]
         assert "Leite Moça 395g" in names
         assert "Arroz Tora Tipo 1 5kg" in names
+
+
+@pytest.mark.asyncio
+class TestOllamaHealth:
+    async def test_retorna_ok_quando_ollama_acessivel(self, client):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_resp
+
+        with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value = mock_client
+            response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+    async def test_retorna_offline_quando_ollama_inacessivel(self, client):
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = Exception("connection refused")
+
+        with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value = mock_client
+            response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "offline"

@@ -5,7 +5,11 @@ GET /products              — lista todos os produtos do catálogo
 GET /prices/latest         — último preço registrado para um produto
 GET /prices/lowest         — menor preço já visto para um produto
 GET /prices/history        — histórico completo de preços de um produto
+GET /health/ollama         — verifica se o Ollama está acessível
 """
+import os
+
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
@@ -115,3 +119,27 @@ async def read_price_history(
     if not results:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
     return [PriceResponse(**r) for r in results]
+
+
+# ---------------------------------------------------------------------------
+# Health check do Ollama
+# ---------------------------------------------------------------------------
+
+class OllamaHealthResponse(BaseModel):
+    status: str  # "ok" | "offline"
+    url: str
+
+
+@router.get("/health/ollama", response_model=OllamaHealthResponse)
+async def ollama_health() -> OllamaHealthResponse:
+    url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{url}/api/tags",
+                headers={"ngrok-skip-browser-warning": "true"},
+            )
+            resp.raise_for_status()
+        return OllamaHealthResponse(status="ok", url=url)
+    except Exception:
+        return OllamaHealthResponse(status="offline", url=url)
