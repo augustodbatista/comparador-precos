@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PriceConsultation, type PriceData } from './PriceConsultation'
 
 const mockProductList = [
-  { description: 'LEITE MOCA CX 395G', normalized_name: 'Leite Moça 395g' },
-  { description: 'ARROZ TILIO 5KG', normalized_name: null },
+  { normalized_name: 'Leite Moça 395g' },
+  { normalized_name: 'Arroz Tilio 5kg' },
 ]
 
 const latestPrice: PriceData = {
@@ -68,12 +68,11 @@ describe('PriceConsultation', () => {
     fetchMock.mockReturnValueOnce(jsonResponse(mockProductList))
 
     render(<PriceConsultation />)
+    await userEvent.type(screen.getByLabelText(/buscar produto/i), 'a')
 
     await waitFor(() => {
-      // normalized_name é o label principal quando difere da description
       expect(screen.getByText('Leite Moça 395g')).toBeInTheDocument()
-      // description é o label quando normalized_name é null
-      expect(screen.getByText('ARROZ TILIO 5KG')).toBeInTheDocument()
+      expect(screen.getByText('Arroz Tilio 5kg')).toBeInTheDocument()
     })
   })
 
@@ -84,6 +83,7 @@ describe('PriceConsultation', () => {
       .mockReturnValueOnce(jsonResponse(lowestPrice))     // GET /prices/lowest
 
     render(<PriceConsultation />)
+    await userEvent.type(screen.getByLabelText(/buscar produto/i), 'Leite')
 
     await waitFor(() => screen.getByText('Leite Moça 395g'))
     await userEvent.click(screen.getByText('Leite Moça 395g'))
@@ -108,6 +108,7 @@ describe('PriceConsultation', () => {
       .mockReturnValueOnce(jsonResponse({ detail: 'Produto não encontrado' }, 404))
 
     render(<PriceConsultation />)
+    await userEvent.type(screen.getByLabelText(/buscar produto/i), 'Leite')
 
     await waitFor(() => screen.getByText('Leite Moça 395g'))
     await userEvent.click(screen.getByText('Leite Moça 395g'))
@@ -124,6 +125,7 @@ describe('PriceConsultation', () => {
       .mockReturnValueOnce(jsonResponse({ detail: 'Falha no banco' }, 500))
 
     render(<PriceConsultation />)
+    await userEvent.type(screen.getByLabelText(/buscar produto/i), 'Leite')
 
     await waitFor(() => screen.getByText('Leite Moça 395g'))
     await userEvent.click(screen.getByText('Leite Moça 395g'))
