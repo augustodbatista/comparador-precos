@@ -1,6 +1,7 @@
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --bg-primary: #f8fafc;
+  --bg-subtle: #f1f5f9;
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
@@ -13,12 +14,92 @@
   --danger-light: #fef2f2;
   --border-color: #e2e8f0;
   --card-bg: #ffffff;
+  --tabs-bg: #e2e8f0;
+  --alert-info-bg: #eff6ff;
+  --alert-info-border: #dbeafe;
+  --alert-info-color: #1d4ed8;
+  --alert-danger-border: #fee2e2;
+  --alert-success-border: #d1fae5;
+  --badge-ok-bg: #d1fae5;
+  --badge-ok-color: #065f46;
+  --badge-ok-border: #a7f3d0;
+  --badge-warn-bg: #fffbeb;
+  --badge-warn-color: #92400e;
+  --badge-warn-border: #fde68a;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 16px;
+}
+
+/* Sistema operacional prefere dark e usuário não escolheu light manualmente */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-primary: #0f172a;
+    --bg-subtle: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --primary: #10b981;
+    --primary-hover: #34d399;
+    --primary-light: #022c22;
+    --secondary: #818cf8;
+    --secondary-hover: #6366f1;
+    --danger: #f87171;
+    --danger-light: #1c0a0a;
+    --border-color: #334155;
+    --card-bg: #1e293b;
+    --tabs-bg: #0f172a;
+    --alert-info-bg: #0c1a3a;
+    --alert-info-border: #1e3a6e;
+    --alert-info-color: #93c5fd;
+    --alert-danger-border: #450a0a;
+    --alert-success-border: #022c22;
+    --badge-ok-bg: #022c22;
+    --badge-ok-color: #34d399;
+    --badge-ok-border: #065f46;
+    --badge-warn-bg: #2d1a00;
+    --badge-warn-color: #fbbf24;
+    --badge-warn-border: #78350f;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  }
+}
+
+/* Toggle manual: dark independente do sistema */
+:root[data-theme="dark"] {
+  --bg-primary: #0f172a;
+  --bg-subtle: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --primary: #10b981;
+  --primary-hover: #34d399;
+  --primary-light: #022c22;
+  --secondary: #818cf8;
+  --secondary-hover: #6366f1;
+  --danger: #f87171;
+  --danger-light: #1c0a0a;
+  --border-color: #334155;
+  --card-bg: #1e293b;
+  --tabs-bg: #0f172a;
+  --alert-info-bg: #0c1a3a;
+  --alert-info-border: #1e3a6e;
+  --alert-info-color: #93c5fd;
+  --alert-danger-border: #450a0a;
+  --alert-success-border: #022c22;
+  --badge-ok-bg: #022c22;
+  --badge-ok-color: #34d399;
+  --badge-ok-border: #065f46;
+  --badge-warn-bg: #2d1a00;
+  --badge-warn-color: #fbbf24;
+  --badge-warn-border: #78350f;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
 }
 
 * {
@@ -117,7 +198,7 @@ h2 {
 }
 
 .btn-outline:hover:not(:disabled) {
-  background-color: #f1f5f9;
+  background-color: var(--bg-subtle);
   color: var(--text-primary);
 }
 
@@ -175,20 +256,20 @@ h2 {
 
 .alert-danger {
   background-color: var(--danger-light);
-  border: 1px solid #fee2e2;
+  border: 1px solid var(--alert-danger-border);
   color: var(--danger);
 }
 
 .alert-success {
   background-color: var(--primary-light);
-  border: 1px solid #d1fae5;
+  border: 1px solid var(--alert-success-border);
   color: var(--primary-hover);
 }
 
 .alert-info {
-  background-color: #eff6ff;
-  border: 1px solid #dbeafe;
-  color: #1d4ed8;
+  background-color: var(--alert-info-bg);
+  border: 1px solid var(--alert-info-border);
+  color: var(--alert-info-color);
 }
 
 /* Receipt Details styling */
@@ -226,7 +307,7 @@ h2 {
 }
 
 .items-table th {
-  background-color: #f1f5f9;
+  background-color: var(--bg-subtle);
   padding: 0.75rem 1rem;
   font-weight: 600;
   color: var(--text-secondary);
@@ -254,7 +335,7 @@ h2 {
 }
 
 .receipt-totals {
-  background-color: #f8fafc;
+  background-color: var(--bg-subtle);
   padding: 1rem;
   border-radius: var(--radius-md);
   margin-bottom: 1.5rem;
@@ -294,7 +375,7 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   padding: 0.25rem;
-  background: #e2e8f0;
+  background: var(--tabs-bg);
   border-radius: var(--radius-md);
 }
 
@@ -457,6 +538,60 @@ h2 {
   .price-details {
     grid-template-columns: 1fr;
   }
+}
+
+/* Badge de status da normalização */
+.ollama-badge {
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+.ollama-badge--ok {
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-color);
+  border: 1px solid var(--badge-ok-border);
+}
+.ollama-badge--warn {
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-color);
+  border: 1px solid var(--badge-warn-border);
+}
+
+/* Cabeçalho com toggle de tema */
+.app-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+.app-header-row h1 {
+  margin-bottom: 0;
+}
+.theme-toggle {
+  position: absolute;
+  right: 0;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+.theme-toggle:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Input fields no tema escuro */
+input {
+  background-color: var(--card-bg);
+  color: var(--text-primary);
 }
 
 /* Helper for animations */

@@ -1,21 +1,48 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { QrReader } from './components/QrReader'
 import { PriceConsultation } from './components/PriceConsultation'
 import { ReceiptHistory } from './components/ReceiptHistory'
 
-// Tipo que controla qual tela está ativa na navegação por abas
 type AppView = 'scanner' | 'prices' | 'history'
 
+function useDarkMode() {
+  const getInitial = () => {
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark') return true
+    if (stored === 'light') return false
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+
+  const [dark, setDark] = useState(getInitial)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    localStorage.setItem('theme', dark ? 'dark' : 'light')
+  }, [dark])
+
+  return [dark, () => setDark(d => !d)] as const
+}
+
 export default function App() {
-  // Estado da aba ativa — inicia na tela de scanner
   const [activeView, setActiveView] = useState<AppView>('scanner')
+  const [dark, toggleTheme] = useDarkMode()
 
   return (
     <main className="app-container">
       <header className="app-header">
-        <h1>Comparador de Preços NFC-e</h1>
+        <div className="app-header-row">
+          <h1>Comparador de Preços NFC-e</h1>
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={toggleTheme}
+            aria-label={dark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+            title={dark ? 'Modo claro' : 'Modo escuro'}
+          >
+            {dark ? '☀' : '☾'}
+          </button>
+        </div>
 
-        {/* Navegação por abas: Scanner, Preços e Histórico */}
         <nav className="app-tabs" aria-label="Navegação principal">
           <button
             className={activeView === 'scanner' ? 'app-tab active' : 'app-tab'}
@@ -41,7 +68,6 @@ export default function App() {
         </nav>
       </header>
 
-      {/* Renderiza o componente da aba ativa */}
       {activeView === 'scanner' && <QrReader />}
       {activeView === 'prices' && <PriceConsultation />}
       {activeView === 'history' && <ReceiptHistory />}

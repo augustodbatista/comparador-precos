@@ -181,15 +181,13 @@ function ResultView({
         </div>
       </div>
 
-      {/* Badge de status da normalização Ollama */}
+      {/* Badge de status da normalização */}
       {ollamaStatus !== 'unknown' && (
-        <div role="status" data-testid="ollama-badge" style={{
-          padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-md)',
-          fontSize: '0.875rem', fontWeight: 500, marginBottom: '1rem',
-          ...(ollamaStatus === 'ok'
-            ? { background: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }
-            : { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' }),
-        }}>
+        <div
+          role="status"
+          data-testid="ollama-badge"
+          className={`ollama-badge ${ollamaStatus === 'ok' ? 'ollama-badge--ok' : 'ollama-badge--warn'}`}
+        >
           {OLLAMA_MESSAGES[ollamaStatus]}
         </div>
       )}
