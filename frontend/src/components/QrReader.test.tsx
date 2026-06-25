@@ -271,7 +271,7 @@ describe('QrReader', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ status: 'offline', url: 'http://localhost:11434', reason: 'url_is_localhost' }),
+          json: () => Promise.resolve({ status: 'offline', url: 'groq', reason: 'api_key_missing' }),
         })
       }
       return makeReceiptFetch(init)
@@ -280,7 +280,7 @@ describe('QrReader', () => {
     render(<QrReader />)
     await act(async () => { capturedOnScan!(VALID_URL) })
     await waitFor(() => {
-      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/OLLAMA_URL aponta para localhost/i)
+      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/GROQ_API_KEY não configurada/i)
     })
   })
 })

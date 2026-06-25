@@ -128,26 +128,25 @@ async def read_price_history(
 class OllamaHealthResponse(BaseModel):
     status: str  # "ok" | "offline"
     url: str
-    reason: str  # "ok" | "url_is_localhost" | "connection_error" | "timeout" | "http_error"
+    reason: str  # "ok" | "api_key_missing" | "http_error" | "timeout" | "connection_error"
 
 
 @router.get("/health/ollama", response_model=OllamaHealthResponse)
 async def ollama_health() -> OllamaHealthResponse:
-    url = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    # Render não consegue alcançar localhost do usuário — env var não foi configurada
-    if "localhost" in url or "127.0.0.1" in url:
-        return OllamaHealthResponse(status="offline", url=url, reason="url_is_localhost")
+    api_key = os.getenv("GROQ_API_KEY", "")
+    if not api_key:
+        return OllamaHealthResponse(status="offline", url="groq", reason="api_key_missing")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"{url}/api/tags",
-                headers={"ngrok-skip-browser-warning": "true"},
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
-        return OllamaHealthResponse(status="ok", url=url, reason="ok")
+        return OllamaHealthResponse(status="ok", url="groq", reason="ok")
     except httpx.TimeoutException:
-        return OllamaHealthResponse(status="offline", url=url, reason="timeout")
+        return OllamaHealthResponse(status="offline", url="groq", reason="timeout")
     except httpx.HTTPStatusError:
-        return OllamaHealthResponse(status="offline", url=url, reason="http_error")
+        return OllamaHealthResponse(status="offline", url="groq", reason="http_error")
     except Exception:
-        return OllamaHealthResponse(status="offline", url=url, reason="connection_error")
+        return OllamaHealthResponse(status="offline", url="groq", reason="connection_error")

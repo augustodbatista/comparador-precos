@@ -107,14 +107,14 @@ function ResultView({
   isSaving: boolean
   saveStatus: 'idle' | 'success' | 'already_saved' | 'error'
   saveError: string | null
-  ollamaStatus: 'unknown' | 'ok' | 'url_is_localhost' | 'connection_error' | 'timeout' | 'http_error'
+  ollamaStatus: 'unknown' | 'ok' | 'api_key_missing' | 'connection_error' | 'timeout' | 'http_error'
 }) {
   const OLLAMA_MESSAGES: Record<string, string> = {
     ok:              '✅ Normalização ativa',
-    url_is_localhost:'⚠️ OLLAMA_URL aponta para localhost — configure o ngrok e atualize no Render',
-    connection_error:'⚠️ ngrok fora ou URL desatualizada — rode ngrok http 11434 e atualize no Render',
-    timeout:         '⚠️ Ollama não respondeu — verifique se está rodando na sua máquina',
-    http_error:      '⚠️ Ollama retornou erro — verifique se qwen2.5:7b está instalado',
+    api_key_missing: '⚠️ GROQ_API_KEY não configurada no Render — produtos serão salvos sem normalização',
+    http_error:      '⚠️ GROQ_API_KEY inválida ou expirada — verifique no Render',
+    timeout:         '⚠️ API Groq não respondeu — tente novamente em instantes',
+    connection_error:'⚠️ Erro ao conectar com a API Groq',
   }
 
   return (
@@ -244,7 +244,7 @@ export function QrReader() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Status da normalização Ollama — 'unknown' enquanto o health check está pendente
-  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'url_is_localhost' | 'connection_error' | 'timeout' | 'http_error'>('unknown')
+  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'api_key_missing' | 'connection_error' | 'timeout' | 'http_error'>('unknown')
 
   useEffect(() => {
     if (status !== 'success') return
