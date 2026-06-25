@@ -30,18 +30,7 @@ export default function App() {
   return (
     <main className="app-container">
       <header className="app-header">
-        <div className="app-header-row">
-          <h1>Comparador de Preços NFC-e</h1>
-          <button
-            className="theme-toggle"
-            type="button"
-            onClick={toggleTheme}
-            aria-label={dark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-            title={dark ? 'Modo claro' : 'Modo escuro'}
-          >
-            {dark ? '☀' : '☾'}
-          </button>
-        </div>
+        <h1>Comparador de Preços NFC-e</h1>
 
         <nav className="app-tabs" aria-label="Navegação principal">
           <button
@@ -71,6 +60,16 @@ export default function App() {
       {activeView === 'scanner' && <QrReader />}
       {activeView === 'prices' && <PriceConsultation />}
       {activeView === 'history' && <ReceiptHistory />}
+
+      <button
+        className="theme-toggle"
+        type="button"
+        onClick={toggleTheme}
+        aria-label={dark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+        title={dark ? 'Modo claro' : 'Modo escuro'}
+      >
+        {dark ? '☀' : '☾'}
+      </button>
     </main>
   )
 }
