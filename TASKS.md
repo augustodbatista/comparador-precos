@@ -204,3 +204,26 @@ Tela frontend para consultar o último preço e o menor preço registrado de um 
 | Frontend | QrReader.test.tsx | 8 |
 | Frontend | PriceConsultation.test.tsx | 5 |
 | **Total** | | **94** |
+
+---
+
+## App Mobile Ionic/Capacitor
+
+Criado app mobile separado em `mobile/`, mantendo o site web original em `frontend/`.
+
+**Estrutura principal:**
+- `mobile/src/` — telas Ionic React
+- `mobile/capacitor.config.ts` — configuração Capacitor
+- `mobile/android/` — projeto Android nativo
+
+**Validação executada:**
+- `cd mobile && npm run build`
+- `cd mobile && npm run test:run -- --reporter=dot`
+- `cd mobile && npm run android`
+- `cd mobile/android && .\gradlew.bat assembleDebug`
+
+**Status:**
+- Build web OK
+- 27 testes mobile OK
+- Capacitor sync Android OK
+- APK debug gerado em `mobile/android/app/build/outputs/apk/debug/app-debug.apk`

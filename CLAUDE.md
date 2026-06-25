@@ -150,3 +150,20 @@ Os modelos Pydantic vivem em `routes/receipts.py` (onde são usados) e em `route
 | RS legado | `?chConsNFCe=<44d>` | param direto |
 | MG, DF e outros | `?p=<44d>\|<cDest>\|<hash>` | segmento 0 do param p |
 | BA, PE e não-padrão | chave embutida na URL | fallback regex 44 dígitos |
+
+## App Mobile
+
+O site web original fica em `frontend/`. O app mobile híbrido fica em `mobile/` e usa Ionic React + Capacitor.
+
+Comandos principais:
+
+```bash
+cd mobile
+npm install
+npm run ionic:serve
+npm run android
+cd android
+.\gradlew.bat assembleDebug
+```
+
+O backend precisa aceitar a origem `capacitor://localhost` para chamadas vindas do WebView Android.
