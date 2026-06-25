@@ -1,3 +1,11 @@
+"""
+Endpoints de consulta de preços e catálogo de produtos.
+
+GET /products              — lista todos os produtos do catálogo
+GET /prices/latest         — último preço registrado para um produto
+GET /prices/lowest         — menor preço já visto para um produto
+GET /prices/history        — histórico completo de preços de um produto
+"""
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
@@ -7,13 +15,23 @@ from app.db.repositories.products import list_products
 router = APIRouter()
 
 
+# ---------------------------------------------------------------------------
+# Modelos Pydantic
+# ---------------------------------------------------------------------------
+
 class ProductItem(BaseModel):
-    normalized_name: str
+    """Produto do catálogo retornado por GET /products."""
+    normalized_name: str  # nome legível gerado pelo Ollama (usado como product_id nas queries)
 
 
 class PriceResponse(BaseModel):
-    product_id: str
-    description: str
+    """Resposta completa de uma consulta de preço.
+
+    Contém dados do produto, da compra (quantidade, preço), da nota fiscal
+    e da loja — tudo em um único documento para evitar joins no cliente.
+    """
+    product_id: str           # = normalized_name (chave de busca cross-store)
+    description: str          # nome bruto original da SEFAZ (para auditoria)
     normalized_name: str | None
 
     unit_price: float
@@ -21,22 +39,29 @@ class PriceResponse(BaseModel):
     unit: str
     total_value: float
 
-    purchase_date: str
+    purchase_date: str        # data de emissão da nota (ISO format)
     invoice_number: str
     invoice_series: str
     invoice_model: str
 
-    issuer_name: str
+    issuer_name: str          # nome do estabelecimento
     issuer_cnpj: str
     issuer_address: str
 
-    receipt_access_key: str
-    receipt_url: str
+    receipt_access_key: str   # chave de acesso de 44 dígitos da NF-e
+    receipt_url: str          # URL do QR Code (para link direto ao cupom na SEFAZ)
 
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 @router.get("/products", response_model=list[ProductItem])
 async def list_products_endpoint(request: Request) -> list[ProductItem]:
-    """Lista todos os produtos únicos do catálogo."""
+    """Lista todos os produtos únicos do catálogo em ordem alfabética.
+
+    Usado pelo frontend para popular a lista de busca na tela de Preços.
+    """
     db = request.app.state.db
     products = await list_products(db)
     return [ProductItem(**p) for p in products]
@@ -47,7 +72,10 @@ async def read_latest_price(
     request: Request,
     product_id: str = Query(..., description="normalized_name do produto"),
 ) -> PriceResponse:
-    """Último preço registrado para o produto."""
+    """Retorna o último preço registrado para o produto (purchase_date mais recente).
+
+    product_id deve ser o normalized_name exato retornado por GET /products.
+    """
     db = request.app.state.db
     result = await get_latest_price(db, product_id)
     if not result:
@@ -60,7 +88,10 @@ async def read_lowest_price(
     request: Request,
     product_id: str = Query(..., description="normalized_name do produto"),
 ) -> PriceResponse:
-    """Menor preço já visto para o produto entre todas as lojas."""
+    """Retorna o menor preço unitário já registrado para o produto entre todas as lojas.
+
+    Em caso de empate de preço, retorna o registro mais recente.
+    """
     db = request.app.state.db
     result = await get_lowest_price(db, product_id)
     if not result:
@@ -74,7 +105,11 @@ async def read_price_history(
     product_id: str = Query(..., description="normalized_name do produto"),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[PriceResponse]:
-    """Histórico completo de preços para o produto, do mais recente ao mais antigo."""
+    """Retorna o histórico completo de preços do produto, do mais recente ao mais antigo.
+
+    O parâmetro limit controla quantos registros retornar (máx. 200).
+    Usado pelo botão "Ver todos os preços" na tela de Preços do frontend.
+    """
     db = request.app.state.db
     results = await get_price_history(db, product_id, limit=limit)
     if not results:

@@ -3,7 +3,12 @@ import { Html5QrcodeScanner } from 'html5-qrcode'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 import { API_URL } from '../config/api'
 
+// ID do elemento HTML onde a biblioteca html5-qrcode injeta a câmera
 const SCANNER_ID = 'qr-reader-container'
+
+// ---------------------------------------------------------------------------
+// Interfaces — espelham os modelos Pydantic do backend
+// ---------------------------------------------------------------------------
 
 export interface IssuerData {
   name: string
@@ -12,7 +17,7 @@ export interface IssuerData {
 }
 
 export interface ItemData {
-  code: string
+  code: string       // código interno da loja
   description: string
   qty: number
   unit: string
@@ -30,7 +35,7 @@ export interface InvoiceData {
   model: string
   series: string
   number: string
-  issued_at: string
+  issued_at: string  // formato ISO: "YYYY-MM-DDTHH:MM:SS"
 }
 
 export interface ReceiptData {
@@ -42,13 +47,19 @@ export interface ReceiptData {
   invoice: InvoiceData
 }
 
+// ---------------------------------------------------------------------------
+// Componente interno: tela de scanner de QR Code
+// ---------------------------------------------------------------------------
+
 function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
+  // useRef evita que o scanner seja inicializado duas vezes no StrictMode do React
   const initialized = useRef(false)
 
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
 
+    // Inicializa o scanner com câmera a 10 fps e viewfinder de 280x280px
     const scanner = new Html5QrcodeScanner(
       SCANNER_ID,
       { fps: 10, qrbox: { width: 280, height: 280 } },
@@ -56,10 +67,11 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
     )
 
     scanner.render(
-      (text) => onScan(parseNfceQr(text)),
-      () => {}, // erros de frame individuais são ignorados; só o sucesso importa
+      (text) => onScan(parseNfceQr(text)),  // sucesso: parseia o QR Code e notifica o pai
+      () => {},                              // erro de frame individual: ignorado (ocorre a cada frame sem QR)
     )
 
+    // Cleanup: libera a câmera quando o componente é desmontado
     return () => {
       scanner.clear().catch(() => {})
     }
@@ -70,10 +82,15 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
       <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
         Aponte a câmera para o QR Code do cupom fiscal
       </p>
+      {/* O scanner injeta a câmera dentro deste div via o SCANNER_ID */}
       <div id={SCANNER_ID} />
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Componente interno: tela de resultado após escanear o QR Code
+// ---------------------------------------------------------------------------
 
 function ResultView({
   receipt,
@@ -92,6 +109,7 @@ function ResultView({
 }) {
   return (
     <div className="card">
+      {/* Cabeçalho: nome da loja, CNPJ, endereço e data de emissão */}
       <div className="receipt-header">
         <h2 className="store-name" data-testid="store-name">
           {receipt.issuer.name}
@@ -105,6 +123,7 @@ function ResultView({
         </div>
       </div>
 
+      {/* Tabela de itens da nota */}
       <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '1rem 0 0.5rem' }}>Itens da Nota</h3>
       <div className="items-table-container">
         <table className="items-table">
@@ -138,6 +157,7 @@ function ResultView({
         </table>
       </div>
 
+      {/* Totais da nota */}
       <div className="receipt-totals">
         <div className="total-row">
           <span>Qtd. total de itens:</span>
@@ -151,6 +171,7 @@ function ResultView({
         </div>
       </div>
 
+      {/* Alertas de resultado do salvamento */}
       {saveStatus === 'success' && (
         <div className="alert alert-success" role="alert" style={{ marginBottom: '1.5rem' }}>
           <strong>Sucesso!</strong> Nota fiscal salva com sucesso no banco de dados.
@@ -169,6 +190,7 @@ function ResultView({
         </div>
       )}
 
+      {/* Botões de ação — Salvar some após sucesso para evitar duplo clique */}
       <div className="actions-grid">
         {saveStatus !== 'success' && saveStatus !== 'already_saved' && (
           <button
@@ -188,17 +210,32 @@ function ResultView({
   )
 }
 
+// ---------------------------------------------------------------------------
+// Componente principal: gerencia o fluxo completo de scan → exibição → salvamento
+// ---------------------------------------------------------------------------
+
 export function QrReader() {
+  // Estado da tela: scanning (câmera ativa), loading (buscando na SEFAZ), success, error
   const [status, setStatus] = useState<'scanning' | 'loading' | 'success' | 'error'>('scanning')
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Estados do salvamento (separados do status principal para não esconder o recibo)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'already_saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Chave para forçar remontagem do ScannerView (reinicia a câmera ao escanear novamente)
   const [scanKey, setScanKey] = useState(0)
 
+  /**
+   * Chamado quando o scanner detecta um QR Code.
+   * Busca os dados da nota na SEFAZ via GET /receipts?url=...
+   * Timeout de 60s no cliente para cobrir o cold start do Render (~50s).
+   */
   async function handleScan(data: NfceData | null) {
     if (!data) {
+      // QR Code não reconhecido como NFC-e (pode ser outro tipo de QR Code)
       setErrorMsg('QR Code não reconhecido como NFC-e. Tente novamente.')
       setStatus('error')
       return
@@ -209,6 +246,7 @@ export function QrReader() {
     setSaveStatus('idle')
     setSaveError(null)
 
+    // AbortController para cancelar a requisição se ultrapassar 60 segundos
     const controller = new AbortController()
     const timeoutId = setTimeout(() => {
       controller.abort()
@@ -234,6 +272,7 @@ export function QrReader() {
     } catch (err: any) {
       clearTimeout(timeoutId)
       if (err.name === 'AbortError') {
+        // AbortController disparou — o servidor demorou mais de 60s
         setErrorMsg('O servidor demorou muito para responder (Timeout). Tente novamente.')
       } else {
         setErrorMsg(err.message || 'Erro de conexão com o servidor.')
@@ -242,6 +281,11 @@ export function QrReader() {
     }
   }
 
+  /**
+   * Chamado quando o usuário clica em "Salvar".
+   * Envia o recibo via POST /receipts para persistir no banco com normalização.
+   * 201 = cupom novo | 200 = cupom já existia (idempotente).
+   */
   async function handleSave() {
     if (!receipt) return
     setIsSaving(true)
@@ -272,6 +316,10 @@ export function QrReader() {
     }
   }
 
+  /**
+   * Reseta todos os estados e incrementa scanKey para forçar remontagem do scanner.
+   * Incrementar a key faz o React desmontar e remontar o ScannerView, reiniciando a câmera.
+   */
   function handleReset() {
     setReceipt(null)
     setErrorMsg(null)
@@ -281,6 +329,7 @@ export function QrReader() {
     setScanKey((k) => k + 1)
   }
 
+  // Tela de carregamento — exibida enquanto busca a nota na SEFAZ
   if (status === 'loading') {
     return (
       <div className="card loading-container" data-testid="loader">
@@ -291,6 +340,7 @@ export function QrReader() {
     )
   }
 
+  // Tela de erro — exibida se o QR Code for inválido ou a SEFAZ retornar erro
   if (status === 'error') {
     return (
       <div className="card">
@@ -304,6 +354,7 @@ export function QrReader() {
     )
   }
 
+  // Tela de resultado — exibida após receber os dados da nota com sucesso
   if (status === 'success' && receipt) {
     return (
       <ResultView
@@ -317,6 +368,8 @@ export function QrReader() {
     )
   }
 
+  // Tela padrão — scanner de QR Code ativo
+  // scanKey força remontagem do ScannerView ao escanear novamente
   return (
     <div className="card">
       <ScannerView key={scanKey} onScan={handleScan} />

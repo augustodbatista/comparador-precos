@@ -2,15 +2,19 @@ import { useState } from 'react'
 import { QrReader } from './components/QrReader'
 import { PriceConsultation } from './components/PriceConsultation'
 
+// Tipo que controla qual tela está ativa na navegação por abas
 type AppView = 'scanner' | 'prices'
 
 export default function App() {
+  // Estado da aba ativa — inicia na tela de scanner
   const [activeView, setActiveView] = useState<AppView>('scanner')
 
   return (
     <main className="app-container">
       <header className="app-header">
         <h1>Comparador de Preços NFC-e</h1>
+
+        {/* Navegação por abas: Scanner (escanear cupom) e Preços (consultar preços) */}
         <nav className="app-tabs" aria-label="Navegação principal">
           <button
             className={activeView === 'scanner' ? 'app-tab active' : 'app-tab'}
@@ -29,6 +33,7 @@ export default function App() {
         </nav>
       </header>
 
+      {/* Renderiza o componente da aba ativa */}
       {activeView === 'scanner' ? <QrReader /> : <PriceConsultation />}
     </main>
   )

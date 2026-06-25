@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
 import { API_URL } from '../config/api'
 
+// Produto retornado por GET /products
 interface ProductItem {
-  normalized_name: string
+  normalized_name: string  // nome normalizado pelo Ollama (usado como product_id nas queries)
 }
 
+// Resposta completa de GET /prices/latest, /prices/lowest e /prices/history
 export interface PriceData {
   product_id: string
-  description: string
+  description: string         // nome bruto original da SEFAZ
   normalized_name: string | null
   unit_price: number
   quantity: number
   unit: string
   total_value: number
-  purchase_date: string
+  purchase_date: string       // data de emissão da nota (ISO format)
   invoice_number: string
   invoice_series: string
   invoice_model: string
@@ -24,32 +26,48 @@ export interface PriceData {
   receipt_url: string
 }
 
+// Status da consulta de preços
 type Status = 'idle' | 'loading' | 'success' | 'empty' | 'error'
+
+// Tipo de preço a consultar
 type PriceKind = 'latest' | 'lowest'
 
+// ---------------------------------------------------------------------------
+// Funções utilitárias de formatação
+// ---------------------------------------------------------------------------
+
+/** Formata um número como moeda BRL (ex: R$ 7,99). */
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+/** Formata uma string ISO para data e hora no padrão brasileiro (ex: 07/06/2026 11:36:44). */
 function formatDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('pt-BR')
 }
 
+/** Formata uma string ISO para data curta (ex: 07/06/2026) — usada na tabela de histórico. */
 function formatDateShort(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString('pt-BR')
 }
 
+/** Retorna o rótulo de exibição do produto (o normalized_name). */
 function productLabel(p: ProductItem): string {
   return p.normalized_name
 }
 
+// ---------------------------------------------------------------------------
+// Funções de comunicação com a API
+// ---------------------------------------------------------------------------
+
+/** Busca o preço (latest ou lowest) de um produto pelo product_id. */
 async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData | null> {
   const response = await fetch(`${API_URL}/prices/${kind}?product_id=${encodeURIComponent(productId)}`)
-  if (response.status === 404) return null
+  if (response.status === 404) return null  // produto sem preço registrado
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.detail || `Erro ao consultar preços (${response.status})`)
@@ -57,37 +75,49 @@ async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData
   return response.json()
 }
 
+/** Busca o histórico completo de preços de um produto (até 50 registros). */
 async function fetchHistory(productId: string): Promise<PriceData[]> {
   const response = await fetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
   if (!response.ok) return []
   return response.json()
 }
 
+/** Busca a lista de todos os produtos do catálogo para popular o campo de busca. */
 async function fetchProducts(): Promise<ProductItem[]> {
   const response = await fetch(`${API_URL}/products`)
   if (!response.ok) return []
   return response.json()
 }
 
+// ---------------------------------------------------------------------------
+// Componente interno: card de resultado de preço (menor ou último)
+// ---------------------------------------------------------------------------
+
 function PriceResultCard({ title, price, testId }: { title: string; price: PriceData; testId: string }) {
+  // Exibe o nome normalizado se diferente da descrição bruta; senão, exibe a descrição
   const displayName = price.normalized_name && price.normalized_name !== price.description
     ? price.normalized_name
     : price.description
 
   return (
     <article className="card price-result-card" data-testid={testId}>
+      {/* Cabeçalho do card: tipo de preço (Menor / Último) e valor unitário em destaque */}
       <div className="price-result-header">
         <span className="price-result-label">{title}</span>
         <strong className="price-value">{formatCurrency(price.unit_price)}</strong>
       </div>
 
+      {/* Nome do produto */}
       <div className="price-product-name">{displayName}</div>
+
+      {/* Descrição bruta em cinza, exibida apenas quando diferente do nome normalizado */}
       {price.normalized_name && price.normalized_name !== price.description && (
         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
           {price.description}
         </div>
       )}
 
+      {/* Detalhes da compra: loja, endereço, data, quantidade, total, nota fiscal */}
       <dl className="price-details">
         <div>
           <dt>Loja</dt>
@@ -115,6 +145,7 @@ function PriceResultCard({ title, price, testId }: { title: string; price: Price
         </div>
       </dl>
 
+      {/* Link direto para o cupom na SEFAZ — abre em nova aba */}
       <p className="price-meta">
         <a href={price.receipt_url} target="_blank" rel="noreferrer">
           Ver cupom (chave …{price.receipt_access_key.slice(-8)})
@@ -124,28 +155,51 @@ function PriceResultCard({ title, price, testId }: { title: string; price: Price
   )
 }
 
+// ---------------------------------------------------------------------------
+// Componente principal: tela de consulta de preços
+// ---------------------------------------------------------------------------
+
 export function PriceConsultation() {
+  // Lista de todos os produtos do catálogo
   const [products, setProducts] = useState<ProductItem[]>([])
+
+  // Texto digitado no campo de busca
   const [filter, setFilter] = useState('')
+
+  // Produto selecionado na lista (null = nenhum selecionado ainda)
   const [selected, setSelected] = useState<ProductItem | null>(null)
+
+  // Status da consulta de preços
   const [status, setStatus] = useState<Status>('idle')
+
+  // Resultados da consulta (último preço e menor preço)
   const [latestPrice, setLatestPrice] = useState<PriceData | null>(null)
   const [lowestPrice, setLowestPrice] = useState<PriceData | null>(null)
+
+  // Mensagem de erro da consulta
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Histórico completo de preços (carregado ao clicar em "Ver todos os preços")
   const [history, setHistory] = useState<PriceData[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
+  // Carrega o catálogo de produtos ao montar o componente
   useEffect(() => {
     fetchProducts().then(setProducts).catch(() => {})
   }, [])
 
+  // Filtra a lista de produtos pelo texto digitado
   const filtered = filter.trim().length >= 1
     ? products.filter(p =>
         productLabel(p).toLowerCase().includes(filter.toLowerCase())
       )
     : products
 
+  /**
+   * Executa a consulta de preços para um product_id.
+   * Busca último e menor preço em paralelo para minimizar a latência.
+   */
   async function search(key: string) {
     setStatus('loading')
     setErrorMessage(null)
@@ -166,14 +220,22 @@ export function PriceConsultation() {
     }
   }
 
+  /**
+   * Chamado ao clicar em um item da lista suspensa.
+   * Seleciona o produto E dispara a busca imediatamente (comportamento de autocomplete).
+   */
   async function handleSelect(product: ProductItem) {
     setSelected(product)
-    setFilter(productLabel(product))
+    setFilter(productLabel(product))  // preenche o input com o nome selecionado
     setHistory([])
     setShowHistory(false)
     await search(product.normalized_name)
   }
 
+  /**
+   * Chamado ao clicar no botão "Buscar".
+   * Permite rebuscar o produto já selecionado sem precisar clicar na lista novamente.
+   */
   async function handleSearch() {
     if (!selected) return
     setHistory([])
@@ -181,6 +243,7 @@ export function PriceConsultation() {
     await search(selected.normalized_name)
   }
 
+  /** Reseta todos os estados para o estado inicial. */
   function handleClear() {
     setFilter('')
     setSelected(null)
@@ -192,11 +255,16 @@ export function PriceConsultation() {
     setShowHistory(false)
   }
 
+  /**
+   * Alterna a visibilidade do histórico de preços.
+   * Na primeira abertura, busca os dados da API; nas seguintes usa o cache local.
+   */
   async function handleToggleHistory() {
     if (showHistory) {
       setShowHistory(false)
       return
     }
+    // Usa o cache se já foi carregado antes
     if (history.length > 0) {
       setShowHistory(true)
       return
@@ -209,10 +277,12 @@ export function PriceConsultation() {
     setShowHistory(true)
   }
 
+  // A lista suspensa aparece apenas quando há texto no input E nenhum produto foi selecionado ainda
   const showList = !selected && filter.trim().length >= 1 && filtered.length > 0
 
   return (
     <>
+      {/* Card de busca: input de produto + lista suspensa + botões */}
       <section className="card price-query-card">
         <h2>Consulta de preços</h2>
 
@@ -226,6 +296,7 @@ export function PriceConsultation() {
             onChange={e => {
               const value = e.target.value
               setFilter(value)
+              // Se o usuário editar o campo após selecionar, limpa a seleção para exibir a lista novamente
               if (selected && value !== productLabel(selected)) {
                 setSelected(null)
                 setStatus('idle')
@@ -240,13 +311,14 @@ export function PriceConsultation() {
           />
         </div>
 
+        {/* Lista suspensa de sugestões — aparece ao digitar e some ao selecionar */}
         {showList && (
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
             {filtered.map((p, i) => (
               <li key={i}>
                 <button
                   type="button"
-                  onClick={() => handleSelect(p)}
+                  onClick={() => handleSelect(p)}  // seleciona e busca imediatamente
                   style={{
                     width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem',
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -261,12 +333,17 @@ export function PriceConsultation() {
           </ul>
         )}
 
+        {/* Botões de ação: Buscar (azul, desabilitado sem seleção) e Limpar */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             type="button"
             onClick={handleSearch}
             disabled={!selected || status === 'loading'}
-            style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px' }}
+            style={{
+              flex: 1, padding: '0.7rem', fontSize: '1rem',
+              cursor: selected ? 'pointer' : 'not-allowed',
+              background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px',
+            }}
           >
             Buscar
           </button>
@@ -280,6 +357,7 @@ export function PriceConsultation() {
           </button>
         </div>
 
+        {/* Aviso quando não há cupons salvos ainda */}
         {products.length === 0 && (
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
             Nenhum cupom salvo ainda. Escaneie e salve uma nota primeiro.
@@ -287,6 +365,7 @@ export function PriceConsultation() {
         )}
       </section>
 
+      {/* Estado: carregando */}
       {status === 'loading' && (
         <section className="card loading-container" data-testid="price-loader">
           <div className="spinner"></div>
@@ -294,25 +373,30 @@ export function PriceConsultation() {
         </section>
       )}
 
+      {/* Estado: erro na consulta */}
       {status === 'error' && (
         <section className="alert alert-danger" role="alert">
           {errorMessage || 'Não foi possível consultar os preços.'}
         </section>
       )}
 
+      {/* Estado: nenhum preço encontrado */}
       {status === 'empty' && (
         <section className="alert alert-danger" role="alert">
           Nenhum preço encontrado para esse produto.
         </section>
       )}
 
+      {/* Estado: sucesso — exibe menor preço primeiro, depois último preço */}
       {status === 'success' && (
         <>
           <section className="price-results" aria-label="Resultado da consulta">
+            {/* Menor preço primeiro para facilitar a comparação visual */}
             {lowestPrice && <PriceResultCard title="Menor preço" price={lowestPrice} testId="lowest-price-card" />}
             {latestPrice && <PriceResultCard title="Último preço" price={latestPrice} testId="latest-price-card" />}
           </section>
 
+          {/* Botão para abrir/fechar o histórico completo de preços */}
           <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
             <button
               type="button"
@@ -324,6 +408,7 @@ export function PriceConsultation() {
             </button>
           </div>
 
+          {/* Tabela de histórico: data, preço unitário e loja — compacta e legível */}
           {showHistory && history.length > 0 && (
             <section className="card" style={{ marginTop: '0.75rem' }}>
               <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem' }}>Histórico de preços</h3>
