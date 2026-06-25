@@ -52,14 +52,14 @@ export interface ReceiptData {
 // ---------------------------------------------------------------------------
 
 function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
-  // useRef evita que o scanner seja inicializado duas vezes no StrictMode do React
   const initialized = useRef(false)
+  const onScanRef = useRef(onScan)
+  onScanRef.current = onScan
 
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
 
-    // Inicializa o scanner com câmera a 10 fps e viewfinder de 280x280px
     const scanner = new Html5QrcodeScanner(
       SCANNER_ID,
       { fps: 10, qrbox: { width: 280, height: 280 } },
@@ -67,15 +67,14 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
     )
 
     scanner.render(
-      (text) => onScan(parseNfceQr(text)),  // sucesso: parseia o QR Code e notifica o pai
-      () => {},                              // erro de frame individual: ignorado (ocorre a cada frame sem QR)
+      (text) => onScanRef.current(parseNfceQr(text)),
+      () => {},
     )
 
-    // Cleanup: libera a câmera quando o componente é desmontado
     return () => {
       scanner.clear().catch(() => {})
     }
-  }, [onScan])
+  }, [])
 
   return (
     <div>
