@@ -14,12 +14,6 @@ function formatDate(value: string) {
   return date.toLocaleString('pt-BR')
 }
 
-function formatDateShort(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString('pt-BR')
-}
-
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
