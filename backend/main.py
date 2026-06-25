@@ -50,7 +50,13 @@ app = FastAPI(title="Comparador de Preços NFC-e", lifespan=lifespan)
 # Configuração de CORS — permite requests do Vite local e de qualquer subdomínio Vercel/Render
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server em desenvolvimento local
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server em desenvolvimento local
+        "http://localhost",
+        "https://localhost",
+        "capacitor://localhost",
+        "ionic://localhost",
+    ],
     # Starlette não suporta wildcard em allow_origins; regex cobre Vercel e Render
     allow_origin_regex=r"https://(.*\.vercel\.app|.*\.onrender\.com)",
     # credentials=True exigiria origem literal — quebraria o regex acima
