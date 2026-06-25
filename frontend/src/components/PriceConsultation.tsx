@@ -94,7 +94,7 @@ function Section({ title, expanded, onToggle, badge, children }: {
       <button
         type="button"
         onClick={onToggle}
-        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-primary)' }}
       >
         <span style={{ fontWeight: 600, fontSize: '1rem' }}>{title}</span>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -231,15 +231,15 @@ export function PriceConsultation() {
             placeholder={products.length === 0 ? 'Carregando produtos...' : 'Digite para filtrar...'}
             autoComplete="off"
             disabled={status === 'loading'}
-            style={{ width: '100%', fontSize: '1.1rem', height: '2.8rem', padding: '0 0.75rem' }}
+            style={{ width: '100%', fontSize: '1.1rem', height: '2.8rem', padding: '0 0.75rem', background: 'var(--card-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px' }}
           />
         </div>
 
         {showList && (
-          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px', background: 'var(--card-bg)' }}>
             {filtered.map((p, i) => (
               <li key={i}>
-                <button type="button" onClick={() => handleSelect(p)} style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none', fontSize: '0.9rem' }}>
+                <button type="button" onClick={() => handleSelect(p)} style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', borderBottom: i < filtered.length - 1 ? '1px solid var(--border-color)' : 'none', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
                   {productLabel(p)}
                 </button>
               </li>
@@ -251,7 +251,7 @@ export function PriceConsultation() {
           <button type="button" onClick={handleSearch} disabled={!selected || status === 'loading'} style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px' }}>
             Buscar
           </button>
-          <button type="button" onClick={handleClear} disabled={status === 'loading'} style={{ padding: '0.7rem 1rem', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-secondary, #eee)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+          <button type="button" onClick={handleClear} disabled={status === 'loading'} style={{ padding: '0.7rem 1rem', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-subtle)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
             Limpar
           </button>
         </div>
@@ -303,7 +303,7 @@ export function PriceConsultation() {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                  <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                     <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
                     <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Último preço</th>
                     <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
@@ -311,7 +311,7 @@ export function PriceConsultation() {
                 </thead>
                 <tbody>
                   {byStore.map((s, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '0.4rem 0.5rem' }}>{s.store}</td>
                       <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem', fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#2563eb' : undefined }}>{formatCurrency(s.price)}</td>
                       <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{formatDateShort(s.date)}</td>
@@ -329,7 +329,7 @@ export function PriceConsultation() {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                  <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                     <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
                     <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Preço unit.</th>
                     <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
@@ -337,7 +337,7 @@ export function PriceConsultation() {
                 </thead>
                 <tbody>
                   {history.map((h, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '0.4rem 0.5rem' }}>{formatDateShort(h.purchase_date)}</td>
                       <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>{formatCurrency(h.unit_price)}</td>
                       <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{h.issuer_name}</td>
