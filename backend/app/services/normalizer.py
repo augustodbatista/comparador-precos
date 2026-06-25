@@ -1,5 +1,5 @@
 """
-Serviço de normalização de nomes de produtos via Groq API (llama-3.1-8b-instant).
+Serviço de normalização de nomes de produtos via Groq API (llama-3.3-70b-versatile).
 
 Por que batch em vez de uma chamada por produto:
     Enviar todos os itens de um cupom em um único prompt custa O(1) chamadas HTTP
@@ -23,18 +23,27 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-_MODEL = "llama-3.1-8b-instant"
+_MODEL = "llama-3.3-70b-versatile"
 _TIMEOUT = 30.0
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 _SYSTEM_PROMPT = (
     "Você normaliza descrições brutas de produtos de supermercado extraídas de NFC-e. "
     "Receba um JSON com a chave 'items' (array de strings em caixa alta com abreviações). "
-    "Retorne um JSON com a chave 'names' contendo um array de strings normalizadas "
-    "na mesma ordem: capitalize corretamente, expanda abreviações óbvias, "
-    "mantenha marca, quantidade e unidade quando presentes. "
-    "Não invente informações ausentes no original. "
-    "Exemplo: 'ARROZ TIPO1 5KG TORA' → 'Arroz Tipo 1 Tora 5kg'."
+    "Retorne um JSON com a chave 'names' contendo um array de strings normalizadas na mesma ordem.\n\n"
+    "Regras OBRIGATÓRIAS:\n"
+    "- Capitalize corretamente (Title Case), sem alterar o significado das palavras.\n"
+    "- Expanda apenas abreviações óbvias e universais (ex: 'KG' → 'kg', 'LT' → 'lt', 'UN' → 'un', 'PCT' → 'pacote').\n"
+    "- Mantenha marcas, categorias de produto, quantidades e unidades exatamente como estão no original.\n"
+    "- NÃO traduza, NÃO simplifique, NÃO substitua palavras por sinônimos.\n"
+    "- NÃO invente informações ausentes no original.\n"
+    "- Se não souber o significado de uma abreviação, mantenha como está.\n\n"
+    "Exemplos:\n"
+    "- 'ARROZ TIPO1 5KG TORA' → 'Arroz Tipo 1 Tora 5kg'\n"
+    "- 'ENERGETICO MONSTER 473ML' → 'Energético Monster 473ml'\n"
+    "- 'REFRIG COCA COLA 2L' → 'Refrigerante Coca-Cola 2L'\n"
+    "- 'BISC RECHEADO OREO 90G' → 'Biscoito Recheado Oreo 90g'\n"
+    "- 'FGO FRANGO CONG KG' → 'Frango Congelado kg'"
 )
 
 
