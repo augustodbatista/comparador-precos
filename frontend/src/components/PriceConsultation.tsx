@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react'
 import { API_URL } from '../config/api'
 
-// Produto retornado por GET /products
 interface ProductItem {
-  normalized_name: string  // nome normalizado pelo Ollama (usado como product_id nas queries)
+  normalized_name: string
 }
 
-// Resposta completa de GET /prices/latest, /prices/lowest e /prices/history
 export interface PriceData {
   product_id: string
-  description: string         // nome bruto original da SEFAZ
+  description: string
   normalized_name: string | null
   unit_price: number
   quantity: number
   unit: string
   total_value: number
-  purchase_date: string       // data de emissão da nota (ISO format)
+  purchase_date: string
   invoice_number: string
   invoice_series: string
   invoice_model: string
@@ -26,126 +24,114 @@ export interface PriceData {
   receipt_url: string
 }
 
-// Status da consulta de preços
 type Status = 'idle' | 'loading' | 'success' | 'empty' | 'error'
-
-// Tipo de preço a consultar
 type PriceKind = 'latest' | 'lowest'
 
-// ---------------------------------------------------------------------------
-// Funções utilitárias de formatação
-// ---------------------------------------------------------------------------
-
-/** Formata um número como moeda BRL (ex: R$ 7,99). */
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-/** Formata uma string ISO para data e hora no padrão brasileiro (ex: 07/06/2026 11:36:44). */
 function formatDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('pt-BR')
 }
 
-/** Formata uma string ISO para data curta (ex: 07/06/2026) — usada na tabela de histórico. */
 function formatDateShort(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString('pt-BR')
 }
 
-/** Retorna o rótulo de exibição do produto (o normalized_name). */
-function productLabel(p: ProductItem): string {
-  return p.normalized_name
-}
+function productLabel(p: ProductItem) { return p.normalized_name }
 
-// ---------------------------------------------------------------------------
-// Funções de comunicação com a API
-// ---------------------------------------------------------------------------
-
-/** Busca o preço (latest ou lowest) de um produto pelo product_id. */
 async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData | null> {
-  const response = await fetch(`${API_URL}/prices/${kind}?product_id=${encodeURIComponent(productId)}`)
-  if (response.status === 404) return null  // produto sem preço registrado
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Erro ao consultar preços (${response.status})`)
-  }
-  return response.json()
+  const r = await fetch(`${API_URL}/prices/${kind}?product_id=${encodeURIComponent(productId)}`)
+  if (r.status === 404) return null
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Erro (${r.status})`) }
+  return r.json()
 }
 
-/** Busca o histórico completo de preços de um produto (até 50 registros). */
 async function fetchHistory(productId: string): Promise<PriceData[]> {
-  const response = await fetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
-  if (!response.ok) return []
-  return response.json()
+  const r = await fetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
+  if (!r.ok) return []
+  return r.json()
 }
 
-/** Busca a lista de todos os produtos do catálogo para popular o campo de busca. */
 async function fetchProducts(): Promise<ProductItem[]> {
-  const response = await fetch(`${API_URL}/products`)
-  if (!response.ok) return []
-  return response.json()
+  const r = await fetch(`${API_URL}/products`)
+  if (!r.ok) return []
+  return r.json()
+}
+
+/** Agrupa o histórico por loja e retorna o preço mais recente de cada uma, ordenado pelo menor preço. */
+function computeByStore(history: PriceData[]) {
+  const seen = new Set<string>()
+  const result: { store: string; price: number; date: string }[] = []
+  // history já vem ordenado por data desc — primeira ocorrência de cada loja é a mais recente
+  for (const h of history) {
+    if (!seen.has(h.issuer_name)) {
+      seen.add(h.issuer_name)
+      result.push({ store: h.issuer_name, price: h.unit_price, date: h.purchase_date })
+    }
+  }
+  return result.sort((a, b) => a.price - b.price)
 }
 
 // ---------------------------------------------------------------------------
-// Componente interno: card de resultado de preço (menor ou último)
+// Componente auxiliar: seção colapsável com header clicável
 // ---------------------------------------------------------------------------
 
-function PriceResultCard({ title, price, testId }: { title: string; price: PriceData; testId: string }) {
-  // Exibe o nome normalizado se diferente da descrição bruta; senão, exibe a descrição
+function Section({ title, expanded, onToggle, badge, children }: {
+  title: string
+  expanded: boolean
+  onToggle: () => void
+  badge?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="card" style={{ marginBottom: '0.75rem' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <span style={{ fontWeight: 600, fontSize: '1rem' }}>{title}</span>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {badge && <span style={{ background: '#2563eb', color: '#fff', borderRadius: '99px', padding: '0.1rem 0.5rem', fontSize: '0.75rem' }}>{badge}</span>}
+          {expanded ? '▲' : '▼'}
+        </span>
+      </button>
+      {expanded && <div style={{ marginTop: '0.75rem' }}>{children}</div>}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Card de resultado de preço (menor ou último)
+// ---------------------------------------------------------------------------
+
+function PriceResultCard({ price, testId }: { price: PriceData; testId: string }) {
   const displayName = price.normalized_name && price.normalized_name !== price.description
-    ? price.normalized_name
-    : price.description
+    ? price.normalized_name : price.description
 
   return (
-    <article className="card price-result-card" data-testid={testId}>
-      {/* Cabeçalho do card: tipo de preço (Menor / Último) e valor unitário em destaque */}
+    <article data-testid={testId}>
       <div className="price-result-header">
-        <span className="price-result-label">{title}</span>
         <strong className="price-value">{formatCurrency(price.unit_price)}</strong>
       </div>
-
-      {/* Nome do produto */}
       <div className="price-product-name">{displayName}</div>
-
-      {/* Descrição bruta em cinza, exibida apenas quando diferente do nome normalizado */}
       {price.normalized_name && price.normalized_name !== price.description && (
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-          {price.description}
-        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{price.description}</div>
       )}
-
-      {/* Detalhes da compra: loja, endereço, data, quantidade, total, nota fiscal */}
       <dl className="price-details">
-        <div>
-          <dt>Loja</dt>
-          <dd>{price.issuer_name}</dd>
-        </div>
-        <div>
-          <dt>Endereço</dt>
-          <dd>{price.issuer_address}</dd>
-        </div>
-        <div>
-          <dt>Compra</dt>
-          <dd>{formatDate(price.purchase_date)}</dd>
-        </div>
-        <div>
-          <dt>Quantidade</dt>
-          <dd>{price.quantity} {price.unit}</dd>
-        </div>
-        <div>
-          <dt>Total</dt>
-          <dd>{formatCurrency(price.total_value)}</dd>
-        </div>
-        <div>
-          <dt>NF</dt>
-          <dd>Mod.{price.invoice_model} Série {price.invoice_series} Nº {price.invoice_number}</dd>
-        </div>
+        <div><dt>Loja</dt><dd>{price.issuer_name}</dd></div>
+        <div><dt>Endereço</dt><dd>{price.issuer_address}</dd></div>
+        <div><dt>Compra</dt><dd>{formatDate(price.purchase_date)}</dd></div>
+        <div><dt>Quantidade</dt><dd>{price.quantity} {price.unit}</dd></div>
+        <div><dt>Total</dt><dd>{formatCurrency(price.total_value)}</dd></div>
+        <div><dt>NF</dt><dd>Mod.{price.invoice_model} Série {price.invoice_series} Nº {price.invoice_number}</dd></div>
       </dl>
-
-      {/* Link direto para o cupom na SEFAZ — abre em nova aba */}
       <p className="price-meta">
         <a href={price.receipt_url} target="_blank" rel="noreferrer">
           Ver cupom (chave …{price.receipt_access_key.slice(-8)})
@@ -156,152 +142,90 @@ function PriceResultCard({ title, price, testId }: { title: string; price: Price
 }
 
 // ---------------------------------------------------------------------------
-// Componente principal: tela de consulta de preços
+// Componente principal
 // ---------------------------------------------------------------------------
 
 export function PriceConsultation() {
-  // Lista de todos os produtos do catálogo
   const [products, setProducts] = useState<ProductItem[]>([])
-
-  // Texto digitado no campo de busca
   const [filter, setFilter] = useState('')
-
-  // Produto selecionado na lista (null = nenhum selecionado ainda)
   const [selected, setSelected] = useState<ProductItem | null>(null)
-
-  // Status da consulta de preços
   const [status, setStatus] = useState<Status>('idle')
-
-  // Resultados da consulta (último preço e menor preço)
   const [latestPrice, setLatestPrice] = useState<PriceData | null>(null)
   const [lowestPrice, setLowestPrice] = useState<PriceData | null>(null)
-
-  // Mensagem de erro da consulta
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  // Histórico completo de preços (carregado ao clicar em "Ver todos os preços")
   const [history, setHistory] = useState<PriceData[]>([])
+
+  // Visibilidade de cada seção de resultado
+  const [showLowest, setShowLowest] = useState(true)
+  const [showLatest, setShowLatest] = useState(true)
+  const [showByStore, setShowByStore] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
 
-  // Carrega o catálogo de produtos ao montar o componente
-  useEffect(() => {
-    fetchProducts().then(setProducts).catch(() => {})
-  }, [])
+  useEffect(() => { fetchProducts().then(setProducts).catch(() => {}) }, [])
 
-  // Filtra a lista de produtos pelo texto digitado
   const filtered = filter.trim().length >= 1
-    ? products.filter(p =>
-        productLabel(p).toLowerCase().includes(filter.toLowerCase())
-      )
+    ? products.filter(p => productLabel(p).toLowerCase().includes(filter.toLowerCase()))
     : products
 
-  /**
-   * Executa a consulta de preços para um product_id.
-   * Busca último e menor preço em paralelo para minimizar a latência.
-   */
   async function search(key: string) {
     setStatus('loading')
     setErrorMessage(null)
     setLatestPrice(null)
     setLowestPrice(null)
+    setHistory([])
+    // Reseta seções para estado padrão a cada nova busca
+    setShowLowest(true)
+    setShowLatest(true)
+    setShowByStore(false)
+    setShowHistory(false)
 
     try {
-      const [latest, lowest] = await Promise.all([
-        fetchPrice('latest', key),
-        fetchPrice('lowest', key),
-      ])
+      const [latest, lowest] = await Promise.all([fetchPrice('latest', key), fetchPrice('lowest', key)])
       setLatestPrice(latest)
       setLowestPrice(lowest)
       setStatus(latest || lowest ? 'success' : 'empty')
+      // Busca histórico em segundo plano para alimentar "Por loja" e "Histórico completo"
+      if (latest || lowest) fetchHistory(key).then(setHistory).catch(() => {})
     } catch (error) {
       setStatus('error')
       setErrorMessage(error instanceof Error ? error.message : 'Erro de conexão com o servidor.')
     }
   }
 
-  /**
-   * Chamado ao clicar em um item da lista suspensa.
-   * Seleciona o produto E dispara a busca imediatamente (comportamento de autocomplete).
-   */
   async function handleSelect(product: ProductItem) {
     setSelected(product)
-    setFilter(productLabel(product))  // preenche o input com o nome selecionado
-    setHistory([])
-    setShowHistory(false)
+    setFilter(productLabel(product))
     await search(product.normalized_name)
   }
 
-  /**
-   * Chamado ao clicar no botão "Buscar".
-   * Permite rebuscar o produto já selecionado sem precisar clicar na lista novamente.
-   */
   async function handleSearch() {
     if (!selected) return
-    setHistory([])
-    setShowHistory(false)
     await search(selected.normalized_name)
   }
 
-  /** Reseta todos os estados para o estado inicial. */
   function handleClear() {
-    setFilter('')
-    setSelected(null)
-    setStatus('idle')
-    setLatestPrice(null)
-    setLowestPrice(null)
-    setErrorMessage(null)
-    setHistory([])
-    setShowHistory(false)
+    setFilter(''); setSelected(null); setStatus('idle')
+    setLatestPrice(null); setLowestPrice(null); setErrorMessage(null); setHistory([])
   }
 
-  /**
-   * Alterna a visibilidade do histórico de preços.
-   * Na primeira abertura, busca os dados da API; nas seguintes usa o cache local.
-   */
-  async function handleToggleHistory() {
-    if (showHistory) {
-      setShowHistory(false)
-      return
-    }
-    // Usa o cache se já foi carregado antes
-    if (history.length > 0) {
-      setShowHistory(true)
-      return
-    }
-    if (!selected) return
-    setLoadingHistory(true)
-    const data = await fetchHistory(selected.normalized_name)
-    setHistory(data)
-    setLoadingHistory(false)
-    setShowHistory(true)
-  }
-
-  // A lista suspensa aparece apenas quando há texto no input E nenhum produto foi selecionado ainda
   const showList = !selected && filter.trim().length >= 1 && filtered.length > 0
+  const byStore = computeByStore(history)
 
   return (
     <>
-      {/* Card de busca: input de produto + lista suspensa + botões */}
+      {/* Card de busca */}
       <section className="card price-query-card">
         <h2>Consulta de preços</h2>
-
         <div style={{ marginBottom: '0.75rem' }}>
-          <label htmlFor="product-filter" style={{ display: 'block', marginBottom: '0.4rem' }}>
-            Buscar produto
-          </label>
+          <label htmlFor="product-filter" style={{ display: 'block', marginBottom: '0.4rem' }}>Buscar produto</label>
           <input
             id="product-filter"
             value={filter}
             onChange={e => {
               const value = e.target.value
               setFilter(value)
-              // Se o usuário editar o campo após selecionar, limpa a seleção para exibir a lista novamente
               if (selected && value !== productLabel(selected)) {
-                setSelected(null)
-                setStatus('idle')
-                setLatestPrice(null)
-                setLowestPrice(null)
+                setSelected(null); setStatus('idle'); setLatestPrice(null); setLowestPrice(null)
               }
             }}
             placeholder={products.length === 0 ? 'Carregando produtos...' : 'Digite para filtrar...'}
@@ -311,21 +235,11 @@ export function PriceConsultation() {
           />
         </div>
 
-        {/* Lista suspensa de sugestões — aparece ao digitar e some ao selecionar */}
         {showList && (
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
             {filtered.map((p, i) => (
               <li key={i}>
-                <button
-                  type="button"
-                  onClick={() => handleSelect(p)}  // seleciona e busca imediatamente
-                  style={{
-                    width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-                    fontSize: '0.9rem',
-                  }}
-                >
+                <button type="button" onClick={() => handleSelect(p)} style={{ width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none', fontSize: '0.9rem' }}>
                   {productLabel(p)}
                 </button>
               </li>
@@ -333,31 +247,15 @@ export function PriceConsultation() {
           </ul>
         )}
 
-        {/* Botões de ação: Buscar (azul, desabilitado sem seleção) e Limpar */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={handleSearch}
-            disabled={!selected || status === 'loading'}
-            style={{
-              flex: 1, padding: '0.7rem', fontSize: '1rem',
-              cursor: selected ? 'pointer' : 'not-allowed',
-              background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px',
-            }}
-          >
+          <button type="button" onClick={handleSearch} disabled={!selected || status === 'loading'} style={{ flex: 1, padding: '0.7rem', fontSize: '1rem', cursor: selected ? 'pointer' : 'not-allowed', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px' }}>
             Buscar
           </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={status === 'loading'}
-            style={{ padding: '0.7rem 1rem', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-secondary, #eee)', border: '1px solid var(--border)', borderRadius: '6px' }}
-          >
+          <button type="button" onClick={handleClear} disabled={status === 'loading'} style={{ padding: '0.7rem 1rem', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-secondary, #eee)', border: '1px solid var(--border)', borderRadius: '6px' }}>
             Limpar
           </button>
         </div>
 
-        {/* Aviso quando não há cupons salvos ainda */}
         {products.length === 0 && (
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
             Nenhum cupom salvo ainda. Escaneie e salve uma nota primeiro.
@@ -365,7 +263,6 @@ export function PriceConsultation() {
         )}
       </section>
 
-      {/* Estado: carregando */}
       {status === 'loading' && (
         <section className="card loading-container" data-testid="price-loader">
           <div className="spinner"></div>
@@ -373,45 +270,63 @@ export function PriceConsultation() {
         </section>
       )}
 
-      {/* Estado: erro na consulta */}
       {status === 'error' && (
         <section className="alert alert-danger" role="alert">
           {errorMessage || 'Não foi possível consultar os preços.'}
         </section>
       )}
 
-      {/* Estado: nenhum preço encontrado */}
       {status === 'empty' && (
-        <section className="alert alert-danger" role="alert">
-          Nenhum preço encontrado para esse produto.
-        </section>
+        <section className="alert alert-danger" role="alert">Nenhum preço encontrado para esse produto.</section>
       )}
 
-      {/* Estado: sucesso — exibe menor preço primeiro, depois último preço */}
       {status === 'success' && (
         <>
-          <section className="price-results" aria-label="Resultado da consulta">
-            {/* Menor preço primeiro para facilitar a comparação visual */}
-            {lowestPrice && <PriceResultCard title="Menor preço" price={lowestPrice} testId="lowest-price-card" />}
-            {latestPrice && <PriceResultCard title="Último preço" price={latestPrice} testId="latest-price-card" />}
-          </section>
+          {/* Seção: Menor preço */}
+          {lowestPrice && (
+            <Section title="Menor preço" expanded={showLowest} onToggle={() => setShowLowest(s => !s)} badge={formatCurrency(lowestPrice.unit_price)}>
+              <PriceResultCard price={lowestPrice} testId="lowest-price-card" />
+            </Section>
+          )}
 
-          {/* Botão para abrir/fechar o histórico completo de preços */}
-          <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={handleToggleHistory}
-              disabled={loadingHistory}
-              style={{ padding: '0.6rem 1.2rem', fontSize: '0.95rem', cursor: 'pointer' }}
-            >
-              {loadingHistory ? 'Carregando...' : showHistory ? 'Ocultar histórico' : 'Ver todos os preços'}
-            </button>
-          </div>
+          {/* Seção: Último preço */}
+          {latestPrice && (
+            <Section title="Último preço" expanded={showLatest} onToggle={() => setShowLatest(s => !s)} badge={formatCurrency(latestPrice.unit_price)}>
+              <PriceResultCard price={latestPrice} testId="latest-price-card" />
+            </Section>
+          )}
 
-          {/* Tabela de histórico: data, preço unitário e loja — compacta e legível */}
-          {showHistory && history.length > 0 && (
-            <section className="card" style={{ marginTop: '0.75rem' }}>
-              <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem' }}>Histórico de preços</h3>
+          {/* Seção: Por loja */}
+          <Section title="Por loja" expanded={showByStore} onToggle={() => setShowByStore(s => !s)} badge={byStore.length ? `${byStore.length} loja${byStore.length > 1 ? 's' : ''}` : undefined}>
+            {byStore.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Carregando...</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Loja</th>
+                    <th style={{ textAlign: 'right', padding: '0.4rem 0.5rem' }}>Último preço</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byStore.map((s, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>{s.store}</td>
+                      <td style={{ textAlign: 'right', padding: '0.4rem 0.5rem', fontWeight: i === 0 ? 700 : 400, color: i === 0 ? '#2563eb' : undefined }}>{formatCurrency(s.price)}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-secondary)' }}>{formatDateShort(s.date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Section>
+
+          {/* Seção: Histórico completo */}
+          <Section title="Histórico completo" expanded={showHistory} onToggle={() => setShowHistory(s => !s)} badge={history.length ? `${history.length} registros` : undefined}>
+            {history.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Carregando...</p>
+            ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border)' }}>
@@ -430,8 +345,8 @@ export function PriceConsultation() {
                   ))}
                 </tbody>
               </table>
-            </section>
-          )}
+            )}
+          </Section>
         </>
       )}
     </>
