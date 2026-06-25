@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { QrReader } from './components/QrReader'
 import { PriceConsultation } from './components/PriceConsultation'
+import { ReceiptHistory } from './components/ReceiptHistory'
 
 // Tipo que controla qual tela está ativa na navegação por abas
-type AppView = 'scanner' | 'prices'
+type AppView = 'scanner' | 'prices' | 'history'
 
 export default function App() {
   // Estado da aba ativa — inicia na tela de scanner
@@ -14,7 +15,7 @@ export default function App() {
       <header className="app-header">
         <h1>Comparador de Preços NFC-e</h1>
 
-        {/* Navegação por abas: Scanner (escanear cupom) e Preços (consultar preços) */}
+        {/* Navegação por abas: Scanner, Preços e Histórico */}
         <nav className="app-tabs" aria-label="Navegação principal">
           <button
             className={activeView === 'scanner' ? 'app-tab active' : 'app-tab'}
@@ -30,11 +31,20 @@ export default function App() {
           >
             Preços
           </button>
+          <button
+            className={activeView === 'history' ? 'app-tab active' : 'app-tab'}
+            type="button"
+            onClick={() => setActiveView('history')}
+          >
+            Histórico
+          </button>
         </nav>
       </header>
 
       {/* Renderiza o componente da aba ativa */}
-      {activeView === 'scanner' ? <QrReader /> : <PriceConsultation />}
+      {activeView === 'scanner' && <QrReader />}
+      {activeView === 'prices' && <PriceConsultation />}
+      {activeView === 'history' && <ReceiptHistory />}
     </main>
   )
 }
