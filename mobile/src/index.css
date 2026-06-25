@@ -1,0 +1,241 @@
+:root {
+  --ion-font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ion-color-primary: #0f8f72;
+  --ion-color-primary-rgb: 15, 143, 114;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-success: #168052;
+  --ion-color-warning: #b7791f;
+  --ion-background-color: #f6f8fb;
+  --ion-text-color: #14213d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--ion-background-color);
+  color: var(--ion-text-color);
+}
+
+ion-content::part(scroll) {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+ion-card {
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgb(20 33 61 / 0.08);
+}
+
+ion-card-title {
+  font-size: 1.15rem;
+  letter-spacing: 0;
+}
+
+.section-heading {
+  font-size: 1.15rem;
+  letter-spacing: 0;
+  margin: 0 0 0.8rem;
+}
+
+ion-item h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: normal;
+}
+
+ion-item p {
+  white-space: normal;
+}
+
+ion-tab-bar {
+  --background: #ffffff;
+  border-top: 1px solid #dfe7ef;
+}
+
+.toolbar-logo {
+  display: block;
+  height: auto;
+  margin: 0.2rem auto;
+  max-height: 42px;
+  max-width: 220px;
+  width: auto;
+}
+
+.toolbar-brand {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.toolbar-logo-small {
+  display: block;
+  height: 28px;
+  object-fit: contain;
+  width: 82px;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.centered {
+  text-align: center;
+}
+
+.scanner-box {
+  min-height: 320px;
+}
+
+.scanner-box video {
+  border-radius: 8px;
+}
+
+.receipt-meta {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin-top: 0.4rem;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-bottom: 0.8rem;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.receipt-total {
+  align-items: center;
+  background: #eef7f4;
+  border: 1px solid #cce6de;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  margin: 1rem 0;
+  padding: 0.85rem;
+}
+
+.receipt-total strong,
+.price-value {
+  color: #0f8f72;
+  font-size: 1.35rem;
+}
+
+.action-grid,
+.button-row,
+.filter-stack {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.button-row {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 1rem;
+}
+
+.loading-card {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  justify-content: center;
+  min-height: 180px;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.loading-text {
+  font-weight: 700;
+  margin: 0;
+}
+
+.inline-alert {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  margin-bottom: 1rem;
+  padding: 0.9rem;
+}
+
+.inline-success,
+.inline-info {
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  padding: 0.9rem;
+}
+
+.inline-success {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.inline-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.accordion-content {
+  background: #ffffff;
+  border-bottom: 1px solid #dfe7ef;
+  padding: 0.8rem;
+}
+
+.product-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.price-result h3 {
+  font-size: 1rem;
+  margin: 0.5rem 0 0.2rem;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0.8rem;
+}
+
+.summary-grid div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.summary-grid span {
+  color: #64748b;
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-grid strong {
+  color: #14213d;
+  display: block;
+  font-size: 1rem;
+}
+
+.count-line {
+  margin: 1rem 0 0.6rem;
+}
+
+@media (max-width: 520px) {
+  .button-row,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scanner-box {
+    min-height: 280px;
+  }
+}
