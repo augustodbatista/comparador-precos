@@ -13,6 +13,11 @@ export default function App() {
   return (
     <main className="app-container">
       <header className="app-header">
+        <img
+          className="app-logo"
+          src="/assets/comparador-precos-logo.png"
+          alt="Comparador de Preços"
+        />
         <h1>Comparador de Preços NFC-e</h1>
 
         {/* Navegação por abas: Scanner, Preços e Histórico */}

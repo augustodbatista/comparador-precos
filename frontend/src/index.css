@@ -289,6 +289,14 @@ h2 {
   margin-bottom: 1.5rem;
 }
 
+.app-logo {
+  display: block;
+  height: auto;
+  margin: 0 auto 1rem;
+  max-width: min(360px, 88vw);
+  width: 100%;
+}
+
 .app-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
