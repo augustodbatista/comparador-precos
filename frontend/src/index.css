@@ -291,7 +291,7 @@ h2 {
 
 .app-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   padding: 0.25rem;
   background: #e2e8f0;
