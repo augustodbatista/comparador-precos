@@ -107,8 +107,16 @@ function ResultView({
   isSaving: boolean
   saveStatus: 'idle' | 'success' | 'already_saved' | 'error'
   saveError: string | null
-  ollamaStatus: 'unknown' | 'ok' | 'offline'
+  ollamaStatus: 'unknown' | 'ok' | 'url_is_localhost' | 'connection_error' | 'timeout' | 'http_error'
 }) {
+  const OLLAMA_MESSAGES: Record<string, string> = {
+    ok:              '✅ Normalização ativa',
+    url_is_localhost:'⚠️ OLLAMA_URL aponta para localhost — configure o ngrok e atualize no Render',
+    connection_error:'⚠️ ngrok fora ou URL desatualizada — rode ngrok http 11434 e atualize no Render',
+    timeout:         '⚠️ Ollama não respondeu — verifique se está rodando na sua máquina',
+    http_error:      '⚠️ Ollama retornou erro — verifique se qwen2.5:7b está instalado',
+  }
+
   return (
     <div className="card">
       {/* Cabeçalho: nome da loja, CNPJ, endereço e data de emissão */}
@@ -182,9 +190,7 @@ function ResultView({
             ? { background: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }
             : { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' }),
         }}>
-          {ollamaStatus === 'ok'
-            ? '✅ Normalização ativa'
-            : '⚠️ Normalização inativa — produtos serão salvos sem normalização'}
+          {OLLAMA_MESSAGES[ollamaStatus]}
         </div>
       )}
 
@@ -238,14 +244,14 @@ export function QrReader() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Status da normalização Ollama — 'unknown' enquanto o health check está pendente
-  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'offline'>('unknown')
+  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'url_is_localhost' | 'connection_error' | 'timeout' | 'http_error'>('unknown')
 
   useEffect(() => {
     if (status !== 'success') return
     fetch(`${API_URL}/health/ollama`)
       .then(r => r.json())
-      .then(data => setOllamaStatus(data.status === 'ok' ? 'ok' : 'offline'))
-      .catch(() => setOllamaStatus('offline'))
+      .then(data => setOllamaStatus(data.reason ?? (data.status === 'ok' ? 'ok' : 'connection_error')))
+      .catch(() => setOllamaStatus('connection_error'))
   }, [status])
 
   // Estados do salvamento (separados do status principal para não esconder o recibo)

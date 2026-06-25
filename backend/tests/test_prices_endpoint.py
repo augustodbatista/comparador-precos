@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -226,6 +227,9 @@ class TestPricesEndpoints:
         assert "Arroz Tora Tipo 1 5kg" in names
 
 
+import httpx as _httpx  # alias para evitar conflito com o import do módulo testado
+
+
 @pytest.mark.asyncio
 class TestOllamaHealth:
     async def test_retorna_ok_quando_ollama_acessivel(self, client):
@@ -234,20 +238,67 @@ class TestOllamaHealth:
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_resp
 
-        with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
-            MockClient.return_value.__aenter__.return_value = mock_client
+        with patch.dict(os.environ, {"OLLAMA_URL": "https://test.ngrok-free.app"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["reason"] == "ok"
+
+    async def test_retorna_url_is_localhost_quando_env_nao_configurado(self, client):
+        with patch.dict(os.environ, {"OLLAMA_URL": "http://localhost:11434"}):
             response = await client.get("/health/ollama")
 
         assert response.status_code == 200
-        assert response.json()["status"] == "ok"
+        body = response.json()
+        assert body["status"] == "offline"
+        assert body["reason"] == "url_is_localhost"
 
-    async def test_retorna_offline_quando_ollama_inacessivel(self, client):
+    async def test_retorna_connection_error_quando_ngrok_fora(self, client):
         mock_client = AsyncMock()
         mock_client.get.side_effect = Exception("connection refused")
 
-        with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
-            MockClient.return_value.__aenter__.return_value = mock_client
-            response = await client.get("/health/ollama")
+        with patch.dict(os.environ, {"OLLAMA_URL": "https://test.ngrok-free.app"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
 
         assert response.status_code == 200
-        assert response.json()["status"] == "offline"
+        body = response.json()
+        assert body["status"] == "offline"
+        assert body["reason"] == "connection_error"
+
+    async def test_retorna_timeout_quando_ollama_nao_responde(self, client):
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = _httpx.TimeoutException("timeout")
+
+        with patch.dict(os.environ, {"OLLAMA_URL": "https://test.ngrok-free.app"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "offline"
+        assert body["reason"] == "timeout"
+
+    async def test_retorna_http_error_quando_ollama_retorna_erro(self, client):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = _httpx.HTTPStatusError(
+            "500", request=MagicMock(), response=MagicMock()
+        )
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_resp
+
+        with patch.dict(os.environ, {"OLLAMA_URL": "https://test.ngrok-free.app"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "offline"
+        assert body["reason"] == "http_error"

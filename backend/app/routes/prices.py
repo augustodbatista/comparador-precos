@@ -128,11 +128,15 @@ async def read_price_history(
 class OllamaHealthResponse(BaseModel):
     status: str  # "ok" | "offline"
     url: str
+    reason: str  # "ok" | "url_is_localhost" | "connection_error" | "timeout" | "http_error"
 
 
 @router.get("/health/ollama", response_model=OllamaHealthResponse)
 async def ollama_health() -> OllamaHealthResponse:
     url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    # Render não consegue alcançar localhost do usuário — env var não foi configurada
+    if "localhost" in url or "127.0.0.1" in url:
+        return OllamaHealthResponse(status="offline", url=url, reason="url_is_localhost")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
@@ -140,6 +144,10 @@ async def ollama_health() -> OllamaHealthResponse:
                 headers={"ngrok-skip-browser-warning": "true"},
             )
             resp.raise_for_status()
-        return OllamaHealthResponse(status="ok", url=url)
+        return OllamaHealthResponse(status="ok", url=url, reason="ok")
+    except httpx.TimeoutException:
+        return OllamaHealthResponse(status="offline", url=url, reason="timeout")
+    except httpx.HTTPStatusError:
+        return OllamaHealthResponse(status="offline", url=url, reason="http_error")
     except Exception:
-        return OllamaHealthResponse(status="offline", url=url)
+        return OllamaHealthResponse(status="offline", url=url, reason="connection_error")

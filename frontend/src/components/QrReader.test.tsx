@@ -80,7 +80,7 @@ beforeEach(() => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ status: 'ok', url: 'http://localhost:11434' }),
+        json: () => Promise.resolve({ status: 'ok', url: 'https://test.ngrok.app', reason: 'ok' }),
       })
     }
     return makeReceiptFetch(init)
@@ -271,7 +271,7 @@ describe('QrReader', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ status: 'offline', url: 'http://localhost:11434' }),
+          json: () => Promise.resolve({ status: 'offline', url: 'http://localhost:11434', reason: 'url_is_localhost' }),
         })
       }
       return makeReceiptFetch(init)
@@ -280,7 +280,7 @@ describe('QrReader', () => {
     render(<QrReader />)
     await act(async () => { capturedOnScan!(VALID_URL) })
     await waitFor(() => {
-      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/Normalização inativa/i)
+      expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/OLLAMA_URL aponta para localhost/i)
     })
   })
 })
