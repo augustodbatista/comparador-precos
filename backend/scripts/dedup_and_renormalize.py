@@ -51,6 +51,23 @@ async def _groq_preflight(key: str) -> bool:
         return False  # conexão falhou — deixa normalize_items tratar
 
 
+def _is_regression(new_name: str, existing: str) -> bool:
+    """True se new_name tem mais tokens all-caps que existing.
+
+    Detecta artefato do canonicalize no fallback: quando o LLM cai em 429,
+    o fallback usa canonicalize(pre_process(desc), anchors). Se outro desc
+    processado antes virou âncora com tokens all-caps, canonicalize pode
+    mapear o pre_process atual para esse nome pior. Nesse caso o norm != pre
+    passa na guarda skip-on-fallback mas o resultado é uma regressão.
+    """
+    def _upper_ratio(s: str) -> float:
+        tokens = s.split()
+        if not tokens:
+            return 0.0
+        return sum(1 for t in tokens if t.isupper() and len(t) > 1) / len(tokens)
+    return _upper_ratio(new_name) > _upper_ratio(existing)
+
+
 def _find_clusters(names: list[str]) -> list[list[str]]:
     """Agrupa nomes com similarity >= CANONICAL_THRESHOLD em clusters.
 
@@ -119,9 +136,10 @@ async def main(dry_run: bool) -> None:
         preprocessed = [pre_process(d) for d in batch]
         normalized = await normalize_items(batch, anchors)
         for desc, pre, norm in zip(batch, preprocessed, normalized):
-            # Se result == pre_process, o LLM caiu no fallback — manter nome existente
-            # para não regredir nomes já bem normalizados por rodadas anteriores.
-            if norm == pre:
+            # Guarda 1: LLM caiu no fallback (norm == pre_process) → mantém existente.
+            # Guarda 2: canonicalize no fallback mapeou para âncora com mais all-caps
+            #           que o nome existente → também é regressão, mantém existente.
+            if norm == pre or _is_regression(norm, desc_to_current[desc]):
                 desc_to_new[desc] = desc_to_current[desc]
             else:
                 desc_to_new[desc] = norm
