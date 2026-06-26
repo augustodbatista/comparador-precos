@@ -3,11 +3,12 @@ Testes unitários para o serviço de normalização de produtos.
 httpx é mockado — nenhuma chamada real ao Groq é feita.
 """
 import json
+import unicodedata
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.normalizer import normalize_items
+from app.services.normalizer import normalize_items, pre_process, canonicalize
 
 
 def _mock_groq_response(names: list[str]):
@@ -92,3 +93,58 @@ class TestNormalizeItems:
                 result = await normalize_items(descriptions)
 
         assert result == descriptions
+
+
+class TestPreProcess:
+    def test_expande_abreviacao_conhecida(self):
+        assert pre_process("CERV BRAHMA 350ML") == "Cerveja BRAHMA 350ML"
+
+    def test_expande_lv_para_longa_vida(self):
+        assert pre_process("LEITE LV CAMPONESA 1L") == "LEITE Longa Vida CAMPONESA 1L"
+
+    def test_expande_lvida_para_longa_vida(self):
+        assert pre_process("LEITE LVIDA PIRACANJUBA") == "LEITE Longa Vida PIRACANJUBA"
+
+    def test_expande_bisc(self):
+        assert pre_process("BISC NEGRESCO 90G") == "Biscoito NEGRESCO 90G"
+
+    def test_normaliza_unicode_nfc(self):
+        # NFD: 'ã' como 'a' + combining tilde → NFC: 'ã'
+        nfd_input = unicodedata.normalize("NFD", "Pão")
+        assert pre_process(nfd_input) == "Pão"
+
+    def test_preserva_token_desconhecido(self):
+        assert pre_process("BRAHMA EXTRA") == "BRAHMA EXTRA"
+
+    def test_string_vazia(self):
+        assert pre_process("") == ""
+
+    def test_multiplas_abreviacoes(self):
+        assert pre_process("BISC LV SUAV") == "Biscoito Longa Vida Suavizante"
+
+
+class TestCanonicalize:
+    def test_retorna_existente_acima_do_threshold(self):
+        existing = ["Cerveja Brahma Lata 350ml", "Arroz Tipo 1 Tora 5kg"]
+        # "Cerv Brahma Lata 350ml" vs "Cerveja Brahma Lata 350ml" ≈ 0.94 > 0.92
+        result = canonicalize("Cerv Brahma Lata 350ml", existing)
+        assert result == "Cerveja Brahma Lata 350ml"
+
+    def test_retorna_nome_novo_abaixo_do_threshold(self):
+        existing = ["Pipoca Doce Lin 1kg"]
+        # "Pipoca Doce Lin 40g" vs "Pipoca Doce Lin 1kg": apenas "g" final coincide
+        # após o prefixo comum — ratio ≈ 0.895 < 0.92 → produto diferente
+        result = canonicalize("Pipoca Doce Lin 40g", existing)
+        assert result == "Pipoca Doce Lin 40g"
+
+    def test_lista_vazia_retorna_nome(self):
+        assert canonicalize("Produto Novo", []) == "Produto Novo"
+
+    def test_match_exato_retorna_existente(self):
+        existing = ["Cerveja Brahma Lata 350ml"]
+        assert canonicalize("Cerveja Brahma Lata 350ml", existing) == "Cerveja Brahma Lata 350ml"
+
+    def test_escolhe_melhor_match(self):
+        existing = ["Arroz Tipo 1 5kg", "Cerveja Brahma Lata 350ml"]
+        result = canonicalize("Cerv Brahma Lata 350ml", existing)
+        assert result == "Cerveja Brahma Lata 350ml"

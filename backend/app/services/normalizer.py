@@ -1,22 +1,23 @@
 """
 Serviço de normalização de nomes de produtos via Groq API (llama-3.3-70b-versatile).
 
-Por que batch em vez de uma chamada por produto:
-    Enviar todos os itens de um cupom em um único prompt custa O(1) chamadas HTTP
-    e ~150-200 tokens de saída para 15 produtos, em vez de 15 chamadas sequenciais.
+Pipeline de 3 fases:
+    1. pre_process   — expansão determinística de abreviações e correção de encoding NFC
+    2. LLM (Groq)   — Title Case, expansão residual, correção de typos
+    3. canonicalize  — fuzzy match contra produtos existentes; garante unicidade no banco
+
+Por que batch:
+    O(1) chamadas ao Groq para N produtos de um cupom.
 
 Por que fallback silencioso:
-    O insert não pode travar por falha na API. normalized_name igual à descrição
-    original é aceitável — o cupom é salvo e pode ser re-normalizado depois com
-    o script renormalize_prices.py.
-
-Configuração:
-    GROQ_API_KEY — variável de ambiente obrigatória em produção.
-    Sem a chave, o serviço retorna as descrições originais sem normalizar.
+    O insert não pode travar por falha de API. Se o LLM falhar, pre_process +
+    canonicalize já melhoram o resultado vs a descrição bruta original.
 """
 import json
 import logging
 import os
+import unicodedata
+from difflib import SequenceMatcher
 
 import httpx
 
@@ -27,41 +28,123 @@ _MODEL = "llama-3.3-70b-versatile"
 _TIMEOUT = 30.0
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+CANONICAL_THRESHOLD = 0.92
+
+_ABBREVS: dict[str, str] = {
+    # Categorias de produto
+    "BISC": "Biscoito",
+    "CERV": "Cerveja",
+    "REFRIG": "Refrigerante",
+    "ENERG": "Energético",
+    "DET": "Detergente",    "DETER": "Detergente",
+    "DESOD": "Desodorante",
+    "DESINF": "Desinfetante",
+    "ACHOC": "Achocolatado",
+    "LIMP": "Limpador",
+    "SUAV": "Suavizante",
+    "AMAC": "Amaciante",    "AMC": "Amaciante",
+    "SABAO": "Sabão",
+    # Leite longa vida — causa-raiz dos 3 nomes no banco
+    "LV": "Longa Vida",     "LVIDA": "Longa Vida",  "L.V.": "Longa Vida",
+    # Carnes / frios
+    "FGO": "Frango",
+    "BOV": "Bovino",
+    "LING": "Linguiça",     "LINGUI": "Linguiça",
+    "MORT": "Mortadela",
+    # Embalagem / unidade
+    "PCT": "Pacote",        "EMB": "Embalagem",
+    "CX": "Caixa",          "FR": "Frasco",
+    "BD": "Bandeja",        "SC": "Sachê",
+    "LT": "Lata",           "GAL": "Galão",
+    # Papel / higiene
+    "PAP": "Papel",         "HIG": "Higiênico",
+    "CAF": "Café",
+}
+
 _SYSTEM_PROMPT = (
     "Você normaliza descrições brutas de produtos de supermercado extraídas de NFC-e. "
-    "Receba um JSON com a chave 'items' (array de strings em caixa alta com abreviações). "
+    "Receba um JSON com a chave 'items' (array de strings). "
     "Retorne um JSON com a chave 'names' contendo um array de strings normalizadas na mesma ordem.\n\n"
     "Regras OBRIGATÓRIAS:\n"
-    "- Capitalize corretamente (Title Case), sem alterar o significado das palavras.\n"
-    "- Expanda apenas abreviações óbvias e universais (ex: 'KG' → 'kg', 'LT' → 'lt', 'UN' → 'un', 'PCT' → 'pacote').\n"
-    "- Mantenha marcas, categorias de produto, quantidades e unidades exatamente como estão no original.\n"
-    "- NÃO traduza, NÃO simplifique, NÃO substitua palavras por sinônimos.\n"
+    "- Capitalize em Title Case.\n"
+    "- Corrija typos óbvios preservando o significado (ex: 'COZA' → 'Coxa', 'BOM BOM' → 'Bombom').\n"
+    "- Expanda as abreviações abaixo quando aparecerem:\n"
+    "  BISC→Biscoito, CERV→Cerveja, REFRIG→Refrigerante, ENERG→Energético,\n"
+    "  DET/DETER→Detergente, DESOD→Desodorante, DESINF→Desinfetante,\n"
+    "  ACHOC→Achocolatado, LIMP→Limpador, SUAV→Suavizante, AMAC→Amaciante,\n"
+    "  LV/LVIDA/L.V.→Longa Vida, FGO→Frango, BOV→Bovino, LING→Linguiça,\n"
+    "  MORT→Mortadela, PCT→Pacote, CX→Caixa, PAP→Papel, LT→Lata, SC→Sachê,\n"
+    "  BD→Bandeja, CAF→Café.\n"
+    "- Mantenha marcas, quantidades, unidades e sabores exatamente como estão.\n"
     "- NÃO invente informações ausentes no original.\n"
     "- Se não souber o significado de uma abreviação, mantenha como está.\n\n"
     "Exemplos:\n"
-    "- 'ARROZ TIPO1 5KG TORA' → 'Arroz Tipo 1 Tora 5kg'\n"
-    "- 'ENERGETICO MONSTER 473ML' → 'Energético Monster 473ml'\n"
-    "- 'REFRIG COCA COLA 2L' → 'Refrigerante Coca-Cola 2L'\n"
-    "- 'BISC RECHEADO OREO 90G' → 'Biscoito Recheado Oreo 90g'\n"
-    "- 'FGO FRANGO CONG KG' → 'Frango Congelado kg'"
+    "- 'CERV BRAHMA LATA 350ML' → 'Cerveja Brahma Lata 350ml'\n"
+    "- 'REFRIG COCA COLA PET 2L' → 'Refrigerante Coca-Cola Pet 2L'\n"
+    "- 'LEITE LVIDA CAMPONESA 1L INT' → 'Leite Longa Vida Camponesa 1l Integral'\n"
+    "- 'COZA SOBRECOCA FGO KG' → 'Coxa Sobrecoxa Frango kg'\n"
+    "- 'BOM BOM LACTA FAVORITOS 250G' → 'Bombom Lacta Favoritos 250g'\n"
+    "- 'ENERG LT MONSTER 473ML ULTRA' → 'Energético Lata Monster 473ml Ultra'\n"
+    "- 'BISC NESTLE RECH NEGRESCO 90G BAUNILHA' → 'Biscoito Nestle Recheado Negresco 90g Baunilha'\n"
 )
 
 
-async def normalize_items(descriptions: list[str]) -> list[str]:
-    """Normaliza uma lista de descrições de produtos em uma única chamada ao Groq.
+def pre_process(s: str) -> str:
+    """Expande abreviações conhecidas e normaliza encoding para NFC.
 
-    Retorna a lista normalizada na mesma ordem. Em caso de falha (chave ausente,
-    timeout, JSON inválido ou tamanho divergente), retorna as descrições originais
-    e loga um warning — visível nos logs do Render para diagnóstico.
+    Tokens separados por espaço: se o token em maiúsculas estiver em _ABBREVS,
+    é substituído; caso contrário, mantido intacto. O LLM cuida do Title Case.
+    """
+    if not s:
+        return s
+    s = unicodedata.normalize("NFC", s)
+    return " ".join(_ABBREVS.get(t.upper(), t) for t in s.split())
+
+
+def canonicalize(name: str, existing: list[str]) -> str:
+    """Retorna o nome canônico existente se similarity >= CANONICAL_THRESHOLD.
+
+    Previne que o mesmo produto físico apareça com dois nomes no banco.
+    Threshold 0.92: captura 'Cerv Brahma' vs 'Cerveja Brahma' (≈0.94)
+    sem fundir produtos distintos como 'Pipoca 40g' vs 'Pipoca 70g' (≈0.89).
+    """
+    if not existing:
+        return name
+    name_lower = name.lower()
+    best_ratio, best_match = 0.0, name
+    for candidate in existing:
+        r = SequenceMatcher(None, name_lower, candidate.lower()).ratio()
+        if r > best_ratio:
+            best_ratio, best_match = r, candidate
+    return best_match if best_ratio >= CANONICAL_THRESHOLD else name
+
+
+async def normalize_items(
+    descriptions: list[str],
+    existing_names: list[str] | None = None,
+) -> list[str]:
+    """Normaliza descrições brutas em 3 fases: pré-processo → LLM → canonicalize.
+
+    existing_names: produtos já no banco, usados como âncoras de canonicalização.
+    Cada nome normalizado neste batch também vira âncora para os itens seguintes,
+    garantindo convergência mesmo quando o mesmo produto aparece duas vezes no cupom.
     """
     if not descriptions:
         return []
 
-    if not _GROQ_API_KEY:
-        logger.warning("normalize_items: GROQ_API_KEY não configurada — salvando descrições originais")
-        return descriptions
+    anchors = list(existing_names or [])
+    preprocessed = [pre_process(d) for d in descriptions]
 
-    payload = json.dumps({"items": descriptions}, ensure_ascii=False)
+    if not _GROQ_API_KEY:
+        logger.warning("normalize_items: GROQ_API_KEY não configurada — usando pré-processamento apenas")
+        result = []
+        for name in preprocessed:
+            canonical = canonicalize(name, anchors)
+            anchors.append(canonical)
+            result.append(canonical)
+        return result
+
+    payload = json.dumps({"items": preprocessed}, ensure_ascii=False)
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -87,13 +170,24 @@ async def normalize_items(descriptions: list[str]) -> list[str]:
         names = content.get("names", [])
 
         if len(names) == len(descriptions):
-            return [str(n) for n in names]
+            result = []
+            for name in names:
+                canonical = canonicalize(str(name), anchors)
+                anchors.append(canonical)
+                result.append(canonical)
+            return result
 
     except Exception as exc:
         logger.warning(
-            "normalize_items fallback (%s: %s) — salvando descrições originais",
+            "normalize_items fallback (%s: %s) — usando pré-processamento apenas",
             type(exc).__name__,
             exc,
         )
 
-    return descriptions
+    # Fallback: pré-processamento + canonicalize sem LLM
+    result = []
+    for name in preprocessed:
+        canonical = canonicalize(name, anchors)
+        anchors.append(canonical)
+        result.append(canonical)
+    return result
