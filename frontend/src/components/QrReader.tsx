@@ -259,6 +259,7 @@ export function QrReader() {
 
   // Chave para forçar remontagem do ScannerView (reinicia a câmera ao escanear novamente)
   const [scanKey, setScanKey] = useState(0)
+  const scanInProgress = useRef(false)
 
   /**
    * Chamado quando o scanner detecta um QR Code.
@@ -266,10 +267,13 @@ export function QrReader() {
    * Timeout de 60s no cliente para cobrir o cold start do Render (~50s).
    */
   async function handleScan(data: NfceData | null) {
+    if (scanInProgress.current) return
+    scanInProgress.current = true
+
     if (!data) {
-      // QR Code não reconhecido como NFC-e (pode ser outro tipo de QR Code)
       setErrorMsg('QR Code não reconhecido como NFC-e. Tente novamente.')
       setStatus('error')
+      scanInProgress.current = false
       return
     }
 
@@ -323,6 +327,8 @@ export function QrReader() {
         setErrorMsg(err.message)
       }
       setStatus('error')
+    } finally {
+      scanInProgress.current = false
     }
   }
 
@@ -366,6 +372,7 @@ export function QrReader() {
    * Incrementar a key faz o React desmontar e remontar o ScannerView, reiniciando a câmera.
    */
   function handleReset() {
+    scanInProgress.current = false
     setReceipt(null)
     setErrorMsg(null)
     setRetrying(false)
