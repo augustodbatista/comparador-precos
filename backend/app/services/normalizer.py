@@ -28,7 +28,7 @@ _MODEL = "llama-3.3-70b-versatile"
 _TIMEOUT = 30.0
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-CANONICAL_THRESHOLD = 0.92
+CANONICAL_THRESHOLD = 0.97
 
 _ABBREVS: dict[str, str] = {
     # Categorias de produto

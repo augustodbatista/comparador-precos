@@ -129,15 +129,14 @@ class TestPreProcess:
 
 class TestCanonicalize:
     def test_retorna_existente_acima_do_threshold(self):
-        existing = ["Cerveja Brahma Lata 350ml", "Arroz Tipo 1 Tora 5kg"]
-        # "Cerv Brahma Lata 350ml" vs "Cerveja Brahma Lata 350ml" ≈ 0.94 > 0.92
-        result = canonicalize("Cerv Brahma Lata 350ml", existing)
-        assert result == "Cerveja Brahma Lata 350ml"
+        existing = ["Bombom Lacta Favoritos 250.6g", "Arroz Tipo 1 Tora 5kg"]
+        # "Bom Bom Lacta Favoritos 250.6g" vs "Bombom Lacta Favoritos 250.6g" ≈ 0.983 > 0.97
+        result = canonicalize("Bom Bom Lacta Favoritos 250.6g", existing)
+        assert result == "Bombom Lacta Favoritos 250.6g"
 
     def test_retorna_nome_novo_abaixo_do_threshold(self):
         existing = ["Pipoca Doce Lin 1kg"]
-        # "Pipoca Doce Lin 40g" vs "Pipoca Doce Lin 1kg": apenas "g" final coincide
-        # após o prefixo comum — ratio ≈ 0.895 < 0.92 → produto diferente
+        # "Pipoca Doce Lin 40g" vs "Pipoca Doce Lin 1kg" ≈ 0.895 < 0.97 → produto diferente
         result = canonicalize("Pipoca Doce Lin 40g", existing)
         assert result == "Pipoca Doce Lin 40g"
 
@@ -149,6 +148,7 @@ class TestCanonicalize:
         assert canonicalize("Cerveja Brahma Lata 350ml", existing) == "Cerveja Brahma Lata 350ml"
 
     def test_escolhe_melhor_match(self):
-        existing = ["Arroz Tipo 1 5kg", "Cerveja Brahma Lata 350ml"]
-        result = canonicalize("Cerv Brahma Lata 350ml", existing)
-        assert result == "Cerveja Brahma Lata 350ml"
+        existing = ["Arroz Tipo 1 5kg", "Bombom Lacta Favoritos 250.6g"]
+        # "Bom Bom Lacta Favoritos 250.6g" ≈ 0.983 com "Bombom Lacta..." > 0.97
+        result = canonicalize("Bom Bom Lacta Favoritos 250.6g", existing)
+        assert result == "Bombom Lacta Favoritos 250.6g"
