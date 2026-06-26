@@ -27,9 +27,28 @@ load_dotenv()  # deve vir antes de qualquer import que leia os.getenv no nível 
 from motor.motor_asyncio import AsyncIOMotorClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.services.normalizer import normalize_items, CANONICAL_THRESHOLD
+from app.services.normalizer import normalize_items, pre_process, CANONICAL_THRESHOLD
 
 BATCH = 10  # descrições originais por chamada ao Groq
+
+
+async def _groq_preflight(key: str) -> bool:
+    """Retorna True se a Groq API responde sem 429. Falso = rate-limited."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            r = await c.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [{"role": "user", "content": "ok"}],
+                    "max_tokens": 1,
+                },
+            )
+            return r.status_code != 429
+    except Exception:
+        return False  # conexão falhou — deixa normalize_items tratar
 
 
 def _find_clusters(names: list[str]) -> list[list[str]]:
@@ -60,6 +79,17 @@ async def main(dry_run: bool) -> None:
     db = client[os.getenv("DB_NAME", "comparador_precos")]
     prefix = "[DRY-RUN] " if dry_run else ""
 
+    # ── Preflight: verificar Groq antes de tocar no banco ─────────────────────
+    from app.services.normalizer import _GROQ_API_KEY
+    if _GROQ_API_KEY and not dry_run:
+        print("Verificando Groq API...")
+        if not await _groq_preflight(_GROQ_API_KEY):
+            print("ERRO: Groq API rate-limited (429). O banco NAO foi alterado.")
+            print("Aguarde o reset do limite (geralmente 24h) e tente novamente.")
+            client.close()
+            sys.exit(1)
+        print("Groq disponivel. Prosseguindo...\n")
+
     # ── Fase 1: Re-normalizar ──────────────────────────────────────────────────
     print("=== FASE 1: Re-normalização via pipeline completo ===\n")
 
@@ -86,11 +116,18 @@ async def main(dry_run: bool) -> None:
     desc_to_new: dict[str, str] = {}
     for i in range(0, len(unique_descs), BATCH):
         batch = unique_descs[i: i + BATCH]
+        preprocessed = [pre_process(d) for d in batch]
         normalized = await normalize_items(batch, anchors)
-        for desc, new_name in zip(batch, normalized):
-            desc_to_new[desc] = new_name
-            if new_name not in anchors:
-                anchors.append(new_name)
+        for desc, pre, norm in zip(batch, preprocessed, normalized):
+            # Se result == pre_process, o LLM caiu no fallback — manter nome existente
+            # para não regredir nomes já bem normalizados por rodadas anteriores.
+            if norm == pre:
+                desc_to_new[desc] = desc_to_current[desc]
+            else:
+                desc_to_new[desc] = norm
+                if norm not in anchors:
+                    anchors.append(norm)
+        await asyncio.sleep(3)  # evita estourar TPM do Groq entre batches
 
     phase1_changes: list[tuple[str, str, str]] = []  # (desc, old, new)
     for desc, new_name in desc_to_new.items():
