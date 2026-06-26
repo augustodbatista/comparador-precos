@@ -110,10 +110,10 @@ function ResultView({
 }) {
   const OLLAMA_MESSAGES: Record<string, string> = {
     ok:              '✅ Normalização ativa',
-    api_key_missing: '⚠️ GROQ_API_KEY não configurada no Render — produtos serão salvos sem normalização',
-    http_error:      '⚠️ GROQ_API_KEY inválida ou expirada — verifique no Render',
-    timeout:         '⚠️ API Groq não respondeu — tente novamente em instantes',
-    connection_error:'⚠️ Erro ao conectar com a API Groq',
+    api_key_missing: '⚠️ GROQ_API_KEY não configurada — cupom será salvo sem normalização de nomes',
+    http_error:      '⚠️ GROQ_API_KEY inválida ou expirada — cupom será salvo sem normalização de nomes',
+    timeout:         '⚠️ Groq indisponível no momento — cupom será salvo sem normalização de nomes',
+    connection_error:'⚠️ Groq indisponível no momento — cupom será salvo sem normalização de nomes',
   }
 
   return (
