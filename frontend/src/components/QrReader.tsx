@@ -239,6 +239,7 @@ export function QrReader() {
   const [status, setStatus] = useState<'scanning' | 'loading' | 'success' | 'error'>('scanning')
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
 
   // Status da normalização Ollama — 'unknown' enquanto o health check está pendente
   const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'api_key_missing' | 'connection_error' | 'timeout' | 'http_error'>('unknown')
@@ -273,21 +274,32 @@ export function QrReader() {
     }
 
     setStatus('loading')
+    setRetrying(false)
     setErrorMsg(null)
     setSaveStatus('idle')
     setSaveError(null)
 
-    // AbortController para cancelar a requisição se ultrapassar 60 segundos
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-    }, 60000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
 
-    try {
-      const response = await fetch(`${API_URL}/receipts?url=${encodeURIComponent(data.url)}`, {
+    const doFetch = () =>
+      fetch(`${API_URL}/receipts?url=${encodeURIComponent(data.url)}`, {
         signal: controller.signal,
       })
+
+    try {
+      let response: Response
+      try {
+        response = await doFetch()
+      } catch (netErr: any) {
+        if (netErr.name === 'AbortError') throw netErr
+        // Erro de rede (ex: cold start do Render derrubou a conexão) — aguarda 8s e tenta mais uma vez
+        setRetrying(true)
+        await new Promise(r => setTimeout(r, 8000))
+        response = await doFetch()
+      }
       clearTimeout(timeoutId)
+      setRetrying(false)
 
       if (!response.ok) {
         if (response.status === 504) {
@@ -302,11 +314,13 @@ export function QrReader() {
       setStatus('success')
     } catch (err: any) {
       clearTimeout(timeoutId)
+      setRetrying(false)
       if (err.name === 'AbortError') {
-        // AbortController disparou — o servidor demorou mais de 60s
         setErrorMsg('O servidor demorou muito para responder (Timeout). Tente novamente.')
+      } else if (!err.message || err.message === 'Failed to fetch') {
+        setErrorMsg('Não foi possível conectar ao servidor. O serviço pode estar iniciando — aguarde alguns segundos e tente novamente.')
       } else {
-        setErrorMsg(err.message || 'Erro de conexão com o servidor.')
+        setErrorMsg(err.message)
       }
       setStatus('error')
     }
@@ -354,6 +368,7 @@ export function QrReader() {
   function handleReset() {
     setReceipt(null)
     setErrorMsg(null)
+    setRetrying(false)
     setSaveStatus('idle')
     setSaveError(null)
     setOllamaStatus('unknown')
@@ -366,8 +381,10 @@ export function QrReader() {
     return (
       <div className="card loading-container" data-testid="loader">
         <div className="spinner"></div>
-        <p className="loading-text">Buscando nota na SEFAZ...</p>
-        <p className="loading-subtext">Isso pode levar até 50 segundos no cold start da API.</p>
+        <p className="loading-text">
+          {retrying ? 'Servidor iniciando, reconectando...' : 'Buscando nota na SEFAZ...'}
+        </p>
+        <p className="loading-subtext">Isso pode levar até 60 segundos na primeira consulta do dia.</p>
       </div>
     )
   }
