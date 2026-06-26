@@ -44,7 +44,10 @@ async def list_products(db: AsyncIOMotorDatabase) -> list[dict]:
 
 
 async def list_all_product_names(db: AsyncIOMotorDatabase) -> list[str]:
-    """Retorna todos os normalized_name cadastrados. Usado para canonicalização no POST /receipts."""
+    """Retorna todos os normalized_name cadastrados. Usado para canonicalização no POST /receipts.
+
+    Limite 10 000: cobre qualquer catálogo doméstico real; sem sort pois ordem não importa aqui.
+    """
     cursor = db[COLLECTION].find({}, {"_id": 0, "normalized_name": 1})
     docs = await cursor.to_list(length=10_000)
     return [d["normalized_name"] for d in docs]

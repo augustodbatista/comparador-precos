@@ -105,8 +105,8 @@ def canonicalize(name: str, existing: list[str]) -> str:
     """Retorna o nome canônico existente se similarity >= CANONICAL_THRESHOLD.
 
     Previne que o mesmo produto físico apareça com dois nomes no banco.
-    Threshold 0.92: captura 'Cerv Brahma' vs 'Cerveja Brahma' (≈0.94)
-    sem fundir produtos distintos como 'Pipoca 40g' vs 'Pipoca 70g' (≈0.89).
+    Threshold 0.97: captura 'Bom Bom Lacta' vs 'Bombom Lacta' (≈0.98)
+    sem fundir produtos de tamanhos distintos como 'Pipoca 40g' vs 'Pipoca 70g' (≈0.95).
     """
     if not existing:
         return name
