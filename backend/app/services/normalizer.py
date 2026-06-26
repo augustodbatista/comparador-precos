@@ -36,6 +36,7 @@ _ABBREVS: dict[str, str] = {
     "CERV": "Cerveja",
     "REFRIG": "Refrigerante",
     "ENERG": "Energético",
+    "CHOC": "Chocolate",
     "DET": "Detergente",    "DETER": "Detergente",
     "DESOD": "Desodorante",
     "DESINF": "Desinfetante",
@@ -59,6 +60,11 @@ _ABBREVS: dict[str, str] = {
     # Papel / higiene
     "PAP": "Papel",         "HIG": "Higiênico",
     "CAF": "Café",
+    # Adjetivos / qualificadores frequentes em NFC-e
+    "LIQ": "Líquido",       "LQ": "Líquido",
+    "TRAD": "Tradicional",
+    "MULT": "Múltiplo",
+    "INTEG": "Integral",
 }
 
 _SYSTEM_PROMPT = (
