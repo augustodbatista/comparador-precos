@@ -176,6 +176,12 @@ async def normalize_items(
                 anchors.append(canonical)
                 result.append(canonical)
             return result
+        else:
+            logger.warning(
+                "normalize_items: resposta do LLM com tamanho divergente (%d vs %d) — usando pré-processamento",
+                len(names),
+                len(descriptions),
+            )
 
     except Exception as exc:
         logger.warning(

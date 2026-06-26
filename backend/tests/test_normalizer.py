@@ -41,16 +41,18 @@ class TestNormalizeItems:
         assert result == []
 
     async def test_fallback_quando_api_key_ausente(self):
-        descriptions = ["PRODUTO A", "PRODUTO B"]
+        descriptions = ["CERV BRAHMA", "LEITE LV"]
+        expected = ["Cerveja BRAHMA", "LEITE Longa Vida"]
 
         with patch.dict("os.environ", {"GROQ_API_KEY": ""}):
             with patch("app.services.normalizer._GROQ_API_KEY", ""):
                 result = await normalize_items(descriptions)
 
-        assert result == descriptions
+        assert result == expected
 
     async def test_fallback_quando_groq_fora(self):
-        descriptions = ["PRODUTO A", "PRODUTO B"]
+        descriptions = ["CERV BRAHMA", "LEITE LV"]
+        expected = ["Cerveja BRAHMA", "LEITE Longa Vida"]
 
         mock_client = AsyncMock()
         mock_client.post.side_effect = Exception("connection refused")
@@ -61,10 +63,11 @@ class TestNormalizeItems:
                     MockClient.return_value.__aenter__.return_value = mock_client
                     result = await normalize_items(descriptions)
 
-        assert result == descriptions
+        assert result == expected
 
     async def test_fallback_quando_json_invalido(self):
-        descriptions = ["PRODUTO A"]
+        descriptions = ["CERV BRAHMA"]
+        expected = ["Cerveja BRAHMA"]
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
@@ -78,11 +81,12 @@ class TestNormalizeItems:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 result = await normalize_items(descriptions)
 
-        assert result == descriptions
+        assert result == expected
 
     async def test_fallback_quando_tamanho_diverge(self):
-        descriptions = ["PRODUTO A", "PRODUTO B", "PRODUTO C"]
-        names_incompletas = ["Produto A", "Produto B"]
+        descriptions = ["CERV BRAHMA", "LEITE LV", "BISC NEGRESCO"]
+        names_incompletas = ["Cerveja Brahma", "Leite Longa Vida"]
+        expected = ["Cerveja BRAHMA", "LEITE Longa Vida", "Biscoito NEGRESCO"]
 
         mock_client = AsyncMock()
         mock_client.post.return_value = _mock_groq_response(names_incompletas)
@@ -92,7 +96,7 @@ class TestNormalizeItems:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 result = await normalize_items(descriptions)
 
-        assert result == descriptions
+        assert result == expected
 
 
 class TestPreProcess:
