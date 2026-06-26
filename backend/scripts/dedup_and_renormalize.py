@@ -21,12 +21,13 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
 from dotenv import load_dotenv
+
+load_dotenv()  # deve vir antes de qualquer import que leia os.getenv no nível de módulo
+
 from motor.motor_asyncio import AsyncIOMotorClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.services.normalizer import normalize_items, CANONICAL_THRESHOLD
-
-load_dotenv()
 
 BATCH = 10  # descrições originais por chamada ao Groq
 
