@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { QrReader } from './components/QrReader'
 import { PriceConsultation } from './components/PriceConsultation'
 import { ReceiptHistory } from './components/ReceiptHistory'
+import { API_URL } from './config/api'
 
 type AppView = 'scanner' | 'prices' | 'history'
 
@@ -26,6 +27,12 @@ function useDarkMode() {
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('scanner')
   const [dark, toggleTheme] = useDarkMode()
+
+  // Acorda o backend no Render (free tier dorme após ~15 min sem uso).
+  // O ping é fire-and-forget: erros são silenciados.
+  useEffect(() => {
+    fetch(`${API_URL}/health/ollama`).catch(() => {})
+  }, [])
 
   return (
     <main className="app-container">
