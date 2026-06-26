@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 # normalize_items é mockado em todos os testes POST para evitar chamada real ao Ollama.
 # O mock retorna as descrições originais (passthrough), o que é idêntico ao fallback.
-async def _normalize_passthrough(descriptions):
+async def _normalize_passthrough(descriptions, existing_names=None):
     return descriptions
 
 import httpx

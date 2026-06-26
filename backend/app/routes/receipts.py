@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.db.repositories.prices import insert_prices
-from app.db.repositories.products import upsert_product
+from app.db.repositories.products import upsert_product, list_all_product_names
 from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 from app.services.html_parser import ParseError, parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError, fetch_nfce_html
@@ -148,7 +148,8 @@ async def save_receipt(body: ReceiptData, request: Request, response: Response) 
     # Extrai as descrições brutas e normaliza via Ollama em um único batch
     # Fallback: se Ollama estiver fora, normalized_name = description original
     descriptions = [item.description for item in body.items]
-    normalized = await normalize_items(descriptions)
+    existing_names = await list_all_product_names(db)
+    normalized = await normalize_items(descriptions, existing_names)
 
     # Substitui o normalized_name de cada item pelo resultado do Ollama
     items = [

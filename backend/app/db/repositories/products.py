@@ -41,3 +41,10 @@ async def list_products(db: AsyncIOMotorDatabase) -> list[dict]:
         .sort("normalized_name", 1)                   # ordem alfabética crescente
     )
     return await cursor.to_list(length=1000)
+
+
+async def list_all_product_names(db: AsyncIOMotorDatabase) -> list[str]:
+    """Retorna todos os normalized_name cadastrados. Usado para canonicalização no POST /receipts."""
+    cursor = db[COLLECTION].find({}, {"_id": 0, "normalized_name": 1})
+    docs = await cursor.to_list(length=10_000)
+    return [d["normalized_name"] for d in docs]
