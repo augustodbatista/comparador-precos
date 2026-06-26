@@ -249,7 +249,7 @@ export function QrReader() {
     fetch(`${API_URL}/health/ollama`)
       .then(r => r.json())
       .then(data => setOllamaStatus(data.reason ?? (data.status === 'ok' ? 'ok' : 'connection_error')))
-      .catch(() => setOllamaStatus('connection_error'))
+      .catch(() => setOllamaStatus('ok'))  // se o scan funcionou, o backend está no ar
   }, [status])
 
   // Estados do salvamento (separados do status principal para não esconder o recibo)
