@@ -134,7 +134,7 @@ async def main(dry_run: bool) -> None:
         phase2_merges.append((canonical, others))
         print(f"  Cluster canônico: {canonical!r}")
         for other in others:
-            print(f"    {prefix}fundindo {other!r} → {canonical!r}")
+            print(f"    {prefix}fundindo {other!r} -> {canonical!r}")
             if not dry_run:
                 await db["prices"].update_many(
                     {"product_id": other},
