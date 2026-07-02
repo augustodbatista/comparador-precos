@@ -72,6 +72,23 @@ ion-card-content {
   padding-top: 0.55rem;
 }
 
+ion-badge {
+  --background: #04796a;
+  --color: #ffffff;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+ion-badge[color="success"] {
+  --background: #168052;
+  --color: #ffffff;
+}
+
+ion-badge[color="medium"] {
+  --background: #64748b;
+  --color: #ffffff;
+}
+
 .section-heading {
   color: #162033;
   font-size: 1.05rem;
