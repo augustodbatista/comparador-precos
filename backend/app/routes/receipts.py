@@ -5,13 +5,11 @@ GET  /receipts         — lista histórico salvo no banco
 GET  /receipts?url=... — busca um cupom na SEFAZ pelo QR Code
 POST /receipts         — salva um cupom no banco com normalização de nomes
 """
-from datetime import datetime
-
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, Response
-from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
+from app.models.receipt import ReceiptData
 from app.repositories.prices import insert_prices, find_product_ids_by_description
 from app.repositories.products import upsert_product, list_all_product_names
 from app.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
@@ -21,59 +19,6 @@ from app.services.normalizer import normalize_items, pre_process, is_regression
 from app.services.qr_parser import parse_qr_nfce
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Modelos Pydantic — definem o contrato da API (request e response body)
-# ---------------------------------------------------------------------------
-
-class IssuerData(BaseModel):
-    """Dados do estabelecimento emissor da nota."""
-    name: str
-    cnpj: str
-    address: str
-
-
-class ItemData(BaseModel):
-    """Um item (produto) da nota fiscal."""
-    code: str                          # código interno da loja
-    description: str                   # nome bruto da SEFAZ (caixa alta, abreviado)
-    normalized_name: str | None = None # nome normalizado pelo Ollama (None antes de salvar)
-    qty: float
-    unit: str
-    unit_price: float
-    total: float
-
-
-class TotalsData(BaseModel):
-    """Totais da nota fiscal."""
-    total: float
-    paid: float
-    items_count: int
-
-
-class InvoiceData(BaseModel):
-    """Dados da nota fiscal (número, série, modelo, data de emissão)."""
-    model: str
-    series: str
-    number: str
-    issued_at: str  # formato ISO: "YYYY-MM-DDTHH:MM:SS"
-
-
-class ReceiptData(BaseModel):
-    """Representação completa de um cupom fiscal.
-
-    created_at é None quando o cupom vem direto da SEFAZ (GET ?url=) e
-    preenchido quando vem do banco (histórico ou após POST).
-    Pydantic ignora created_at no body do POST — o banco sempre sobrescreve com datetime.now().
-    """
-    access_key: str
-    url: str
-    issuer: IssuerData
-    items: list[ItemData]
-    totals: TotalsData
-    invoice: InvoiceData
-    created_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
