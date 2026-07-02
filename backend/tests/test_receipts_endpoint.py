@@ -86,7 +86,7 @@ class TestGetReceipts:
         assert body[0]["access_key"] == "2" * 44
 
     async def test_retorna_200_com_dados_estruturados(self, client):
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
             response = await client.get("/receipts", params={"url": VALID_URL})
 
         assert response.status_code == 200
@@ -98,12 +98,12 @@ class TestGetReceipts:
 
     async def test_retorna_dados_do_banco_sem_chamar_sefaz_se_ja_existe(self, client):
         # Salva via POST primeiro
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
             await client.get("/receipts", params={"url": VALID_URL})
 
         # Segunda chamada ao GET não deve chamar a SEFAZ
         mock_fetch = AsyncMock(return_value=MG_HTML)
-        with patch("app.routes.receipts.fetch_nfce_html", new=mock_fetch):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=mock_fetch):
             # Para ter algo no banco, precisamos salvar antes via POST
             pass
 
@@ -116,7 +116,7 @@ class TestGetReceipts:
         await insert_receipt(app.state.db, {"access_key": nfce.access_key, "url": nfce.url, **parsed})
 
         mock_fetch = AsyncMock(return_value=MG_HTML)
-        with patch("app.routes.receipts.fetch_nfce_html", new=mock_fetch):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=mock_fetch):
             response = await client.get("/receipts", params={"url": VALID_URL})
 
         assert response.status_code == 200
@@ -128,17 +128,17 @@ class TestGetReceipts:
         assert "NFC-e" in response.json()["detail"]
 
     async def test_retorna_422_quando_html_nao_reconhecido(self, client):
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(return_value="<html><body>erro</body></html>")):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(return_value="<html><body>erro</body></html>")):
             response = await client.get("/receipts", params={"url": VALID_URL})
         assert response.status_code == 422
 
     async def test_retorna_502_quando_sefaz_retorna_erro(self, client):
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(side_effect=NfceFetchError(403, "Forbidden"))):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(side_effect=NfceFetchError(403, "Forbidden"))):
             response = await client.get("/receipts", params={"url": VALID_URL})
         assert response.status_code == 502
 
     async def test_retorna_504_em_timeout(self, client):
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(side_effect=httpx.TimeoutException("timeout"))):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(side_effect=httpx.TimeoutException("timeout"))):
             response = await client.get("/receipts", params={"url": VALID_URL})
         assert response.status_code == 504
 
@@ -147,27 +147,27 @@ class TestGetReceipts:
 class TestPostReceipts:
     async def _get_parsed_body(self, client):
         """Helper: obtém dados parseados via GET para usar no POST."""
-        with patch("app.routes.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
             r = await client.get("/receipts", params={"url": VALID_URL})
         return r.json()
 
     async def test_retorna_201_ao_salvar_novo_cupom(self, client):
         body = await self._get_parsed_body(client)
-        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
             response = await client.post("/receipts", json=body)
         assert response.status_code == 201
         assert response.json()["access_key"] == VALID_KEY
 
     async def test_retorna_200_quando_cupom_ja_existe(self, client):
         body = await self._get_parsed_body(client)
-        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
             await client.post("/receipts", json=body)
             response = await client.post("/receipts", json=body)
         assert response.status_code == 200
 
     async def test_dados_persistidos_no_banco(self, client):
         body = await self._get_parsed_body(client)
-        with patch("app.routes.receipts.normalize_items", new=_normalize_passthrough):
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
             await client.post("/receipts", json=body)
 
         # Cabeçalho salvo em 'receipts' (sem items[])
@@ -208,7 +208,7 @@ class TestPostReceipts:
             # simula LLM/canonicalize caindo de volta pro nome bruto pro primeiro item
             return ["LEITE LV CAMPONESA" if d == "LEITE LV CAMPONESA" else d for d in descriptions]
 
-        with patch("app.routes.receipts.normalize_items", new=_regressed):
+        with patch("app.controllers.receipts.normalize_items", new=_regressed):
             response = await client.post("/receipts", json=body)
 
         assert response.status_code == 201

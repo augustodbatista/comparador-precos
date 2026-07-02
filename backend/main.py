@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.repositories.connection import create_indexes, get_client, get_db
-from app.routes.receipts import router as receipts_router
-from app.routes.prices import router as prices_router
+from app.controllers.receipts import router as receipts_router
+from app.controllers.prices import router as prices_router
 
 # Usa o logger do uvicorn para que as mensagens apareçam junto com o tráfego HTTP nos logs do Render
 logger = logging.getLogger("uvicorn.error")

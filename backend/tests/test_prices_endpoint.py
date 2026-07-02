@@ -239,7 +239,7 @@ class TestOllamaHealth:
         mock_client.get.return_value = mock_resp
 
         with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
-            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            with patch("app.controllers.prices.httpx.AsyncClient") as MockClient:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 response = await client.get("/health/ollama")
 
@@ -264,7 +264,7 @@ class TestOllamaHealth:
         mock_client.get.return_value = mock_resp
 
         with patch.dict(os.environ, {"GROQ_API_KEY": "invalid-key"}):
-            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            with patch("app.controllers.prices.httpx.AsyncClient") as MockClient:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 response = await client.get("/health/ollama")
 
@@ -279,7 +279,7 @@ class TestOllamaHealth:
         mock_client.get.side_effect = _httpx.TimeoutException("timeout")
 
         with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
-            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            with patch("app.controllers.prices.httpx.AsyncClient") as MockClient:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 response = await client.get("/health/ollama")
 
@@ -294,7 +294,7 @@ class TestOllamaHealth:
         mock_client.get.side_effect = Exception("connection refused")
 
         with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
-            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+            with patch("app.controllers.prices.httpx.AsyncClient") as MockClient:
                 MockClient.return_value.__aenter__.return_value = mock_client
                 response = await client.get("/health/ollama")
 
