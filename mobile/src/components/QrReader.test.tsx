@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import jsQR from 'jsqr'
 import { QrReader } from './QrReader'
 
 const KEY = '12345678901234567890123456789012345678901234'
@@ -45,20 +46,68 @@ const mockReceiptData = {
   }
 }
 
-let capturedOnScan: ((text: string) => void) | null = null
+vi.mock('jsqr', () => ({
+  default: vi.fn(() => ({ data: VALID_URL })),
+}))
 
-vi.mock('html5-qrcode', () => ({
-  Html5QrcodeScanner: vi.fn().mockImplementation(() => ({
-    render: vi.fn((onSuccess: (text: string) => void) => {
-      capturedOnScan = onSuccess
-    }),
-    clear: vi.fn().mockResolvedValue(undefined),
-  })),
+vi.mock('@capacitor/camera', () => ({
+  Camera: {
+    getPhoto: vi.fn(),
+  },
+  CameraResultType: {
+    DataUrl: 'dataUrl',
+  },
+  CameraSource: {
+    Camera: 'CAMERA',
+  },
 }))
 
 const fetchMock = vi.fn()
+const getUserMediaMock = vi.fn()
+const stopTrackMock = vi.fn()
+const drawImageMock = vi.fn()
+const getImageDataMock = vi.fn(() => ({
+  data: new Uint8ClampedArray(640 * 480 * 4),
+}))
 
 vi.stubGlobal('fetch', fetchMock)
+vi.stubGlobal('navigator', {
+  ...navigator,
+  mediaDevices: {
+    getUserMedia: getUserMediaMock,
+  },
+})
+vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+  window.setTimeout(() => callback(performance.now()), 0),
+)
+vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
+
+Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', {
+  configurable: true,
+  get: () => 640,
+})
+Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', {
+  configurable: true,
+  get: () => 480,
+})
+Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', {
+  configurable: true,
+  writable: true,
+  value: null,
+})
+HTMLVideoElement.prototype.play = vi.fn().mockResolvedValue(undefined)
+HTMLVideoElement.prototype.pause = vi.fn()
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+  drawImage: drawImageMock,
+  getImageData: getImageDataMock,
+})) as unknown as typeof HTMLCanvasElement.prototype.getContext
+
+async function openCamera() {
+  await userEvent.click(screen.getByTestId('open-camera-btn'))
+  await waitFor(() => {
+    expect(getUserMediaMock).toHaveBeenCalled()
+  })
+}
 
 function makeReceiptFetch(init?: RequestInit) {
   const signal = init?.signal
@@ -73,8 +122,12 @@ function makeReceiptFetch(init?: RequestInit) {
 }
 
 beforeEach(() => {
-  capturedOnScan = null
+  vi.mocked(jsQR).mockReturnValue({ data: VALID_URL } as ReturnType<typeof jsQR>)
   fetchMock.mockClear()
+  getUserMediaMock.mockClear()
+  getUserMediaMock.mockResolvedValue({
+    getTracks: () => [{ stop: stopTrackMock }],
+  })
   fetchMock.mockImplementation((url: string, init?: RequestInit) => {
     if (url.includes('/health/ollama')) {
       return Promise.resolve({
@@ -89,6 +142,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  stopTrackMock.mockClear()
+  drawImageMock.mockClear()
+  getImageDataMock.mockClear()
 })
 
 describe('QrReader', () => {
@@ -101,21 +157,17 @@ describe('QrReader', () => {
     fetchMock.mockImplementationOnce(() => new Promise(() => {}))
 
     render(<QrReader />)
+    await openCamera()
 
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
+    await waitFor(() => {
+      expect(screen.getByTestId('loader')).toBeInTheDocument()
+      expect(screen.getByText(/Buscando nota na SEFAZ/i)).toBeInTheDocument()
     })
-
-    expect(screen.getByTestId('loader')).toBeInTheDocument()
-    expect(screen.getByText(/Buscando nota na SEFAZ/i)).toBeInTheDocument()
   })
 
   it('exibe os dados retornados pela API após scan válido', async () => {
     render(<QrReader />)
-
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
-    })
+    await openCamera()
 
     await waitFor(() => {
       expect(screen.getByTestId('store-name')).toHaveTextContent('Supermercado Preço Bom')
@@ -129,33 +181,16 @@ describe('QrReader', () => {
   })
 
   it('exibe erro de timeout se o servidor demorar mais de 60s (client-side)', async () => {
-    vi.useFakeTimers()
-    
-    fetchMock.mockImplementationOnce((_url, init) => {
-      const signal = init?.signal;
-      return new Promise((_resolve, reject) => {
-        if (signal) {
-          signal.addEventListener('abort', () => {
-            reject(new DOMException('The user aborted a request.', 'AbortError'));
-          });
-        }
-      });
-    })
+    fetchMock.mockImplementationOnce(() =>
+      Promise.reject(new DOMException('The user aborted a request.', 'AbortError')),
+    )
 
     render(<QrReader />)
+    await openCamera()
 
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/demorou muito para responder/i)
     })
-
-    expect(screen.getByTestId('loader')).toBeInTheDocument()
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60000)
-    })
-
-    // Assert synchronously to avoid waitFor hanging on fake timers
-    expect(screen.getByRole('alert')).toHaveTextContent(/demorou muito para responder/i)
   })
 
   it('exibe erro se o servidor retornar 504 Gateway Timeout', async () => {
@@ -166,10 +201,7 @@ describe('QrReader', () => {
     }))
 
     render(<QrReader />)
-
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
-    })
+    await openCamera()
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/Timeout ao acessar a SEFAZ/i)
@@ -178,10 +210,7 @@ describe('QrReader', () => {
 
   it('permite salvar a nota com sucesso e exibe feedback de sucesso', async () => {
     render(<QrReader />)
-
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
-    })
+    await openCamera()
 
     await waitFor(() => {
       expect(screen.getByTestId('store-name')).toBeInTheDocument()
@@ -205,10 +234,7 @@ describe('QrReader', () => {
 
   it('informa que a nota já estava salva quando a API responde 200', async () => {
     render(<QrReader />)
-
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
-    })
+    await openCamera()
 
     await waitFor(() => {
       expect(screen.getByTestId('store-name')).toBeInTheDocument()
@@ -232,10 +258,7 @@ describe('QrReader', () => {
 
   it('exibe feedback de erro ao falhar no salvamento', async () => {
     render(<QrReader />)
-
-    await act(async () => {
-      capturedOnScan!(VALID_URL)
-    })
+    await openCamera()
 
     await waitFor(() => {
       expect(screen.getByTestId('store-name')).toBeInTheDocument()
@@ -259,7 +282,7 @@ describe('QrReader', () => {
 
   it('exibe badge verde quando Ollama está acessível', async () => {
     render(<QrReader />)
-    await act(async () => { capturedOnScan!(VALID_URL) })
+    await openCamera()
     await waitFor(() => {
       expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/Normalização ativa/i)
     })
@@ -278,7 +301,7 @@ describe('QrReader', () => {
     })
 
     render(<QrReader />)
-    await act(async () => { capturedOnScan!(VALID_URL) })
+    await openCamera()
     await waitFor(() => {
       expect(screen.getByTestId('ollama-badge')).toHaveTextContent(/Normalização inativa/i)
     })
