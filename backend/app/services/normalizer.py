@@ -107,6 +107,22 @@ def pre_process(s: str) -> str:
     return " ".join(_ABBREVS.get(t.upper(), t) for t in s.split())
 
 
+def is_regression(new_name: str, existing: str) -> bool:
+    """True se new_name tem mais tokens em caixa alta que existing.
+
+    Detecta artefato de canonicalize() mapeando para uma âncora ruim (ex: nome
+    bruto da SEFAZ ainda não normalizado) em vez de preservar um nome já bom.
+    Só considera tokens alfabéticos — token com dígito (ex: "2L", "350ML") é
+    unidade/quantidade preservada de propósito, não caixa alta indevida.
+    """
+    def _upper_ratio(s: str) -> float:
+        tokens = s.split()
+        if not tokens:
+            return 0.0
+        return sum(1 for t in tokens if t.isalpha() and t.isupper() and len(t) > 1) / len(tokens)
+    return _upper_ratio(new_name) > _upper_ratio(existing)
+
+
 def canonicalize(name: str, existing: list[str]) -> str:
     """Retorna o nome canônico existente se similarity >= CANONICAL_THRESHOLD.
 

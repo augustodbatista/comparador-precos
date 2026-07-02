@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.normalizer import normalize_items, pre_process, canonicalize
+from app.services.normalizer import normalize_items, pre_process, canonicalize, is_regression
 
 
 def _mock_groq_response(names: list[str]):
@@ -152,3 +152,20 @@ class TestCanonicalize:
         # "Bom Bom Lacta Favoritos 250.6g" ≈ 0.983 com "Bombom Lacta..." > 0.97
         result = canonicalize("Bom Bom Lacta Favoritos 250.6g", existing)
         assert result == "Bombom Lacta Favoritos 250.6g"
+
+
+class TestIsRegression:
+    def test_nao_marca_unidade_como_regressao(self):
+        # "2L" não deve contar como token "todo maiúsculo" — é só a unidade preservada,
+        # não um artefato de canonicalize caindo num nome ruim.
+        assert is_regression("Refrigerante Coca-Cola Pet 2L", "Refrigerante Coca-Cola") is False
+
+    def test_nao_marca_quantidade_como_regressao(self):
+        assert is_regression("Leite Integral Piracanjuba 1L", "Leite Integral Piracanjuba") is False
+
+    def test_detecta_regressao_real(self):
+        # nome novo caiu de volta pra bruto/caixa-alta em relação ao existente já normalizado
+        assert is_regression("LEITE LV CAMPONESA", "Leite Longa Vida Camponesa") is True
+
+    def test_nomes_iguais_nao_e_regressao(self):
+        assert is_regression("Leite Longa Vida Camponesa", "Leite Longa Vida Camponesa") is False
