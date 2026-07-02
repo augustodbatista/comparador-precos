@@ -9,6 +9,7 @@ GET /health/ollama         — verifica se o Ollama está acessível
 """
 import os
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
@@ -127,12 +128,28 @@ async def read_price_history(
 class OllamaHealthResponse(BaseModel):
     status: str  # "ok" | "offline"
     url: str
-    reason: str  # "ok" | "api_key_missing" | "http_error" | "timeout" | "connection_error"
+    reason: str  # "ok" | "api_key_missing" | "http_error"
 
 
 @router.get("/health/ollama", response_model=OllamaHealthResponse)
 async def ollama_health() -> OllamaHealthResponse:
+    """Verifica se a Groq API está configurada e a chave é válida.
+
+    Timeout/erro de rede é tratado como "ok" (benefício da dúvida) — só um 401
+    (chave inválida/revogada) é reportado como falha, para não gerar falsos
+    negativos por instabilidade transitória da Groq.
+    """
     api_key = os.getenv("GROQ_API_KEY", "")
     if not api_key:
         return OllamaHealthResponse(status="offline", url="groq", reason="api_key_missing")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+        if resp.status_code == 401:
+            return OllamaHealthResponse(status="offline", url="groq", reason="http_error")
+    except Exception:
+        pass
     return OllamaHealthResponse(status="ok", url="groq", reason="ok")

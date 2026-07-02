@@ -232,9 +232,16 @@ import httpx as _httpx  # alias para evitar conflito com o import do módulo tes
 
 @pytest.mark.asyncio
 class TestOllamaHealth:
-    async def test_retorna_ok_quando_key_configurada(self, client):
+    async def test_retorna_ok_quando_groq_acessivel(self, client):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_resp
+
         with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
-            response = await client.get("/health/ollama")
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
 
         assert response.status_code == 200
         body = response.json()
@@ -249,3 +256,49 @@ class TestOllamaHealth:
         body = response.json()
         assert body["status"] == "offline"
         assert body["reason"] == "api_key_missing"
+
+    async def test_retorna_http_error_quando_groq_key_invalida(self, client):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_resp
+
+        with patch.dict(os.environ, {"GROQ_API_KEY": "invalid-key"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "offline"
+        assert body["reason"] == "http_error"
+
+    async def test_retorna_ok_quando_groq_nao_responde_a_tempo(self, client):
+        # Timeout é ambíguo (pode ser instabilidade transitória) — benefício da dúvida.
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = _httpx.TimeoutException("timeout")
+
+        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["reason"] == "ok"
+
+    async def test_retorna_ok_quando_erro_de_conexao(self, client):
+        # Erro de conexão também é ambíguo — mesmo tratamento do timeout.
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = Exception("connection refused")
+
+        with patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
+            with patch("app.routes.prices.httpx.AsyncClient") as MockClient:
+                MockClient.return_value.__aenter__.return_value = mock_client
+                response = await client.get("/health/ollama")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["reason"] == "ok"
