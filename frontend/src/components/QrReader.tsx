@@ -6,6 +6,11 @@ import { API_URL } from '../config/api'
 // ID do elemento HTML onde a biblioteca html5-qrcode injeta a câmera
 const SCANNER_ID = 'qr-reader-container'
 
+// Estados possíveis do badge de normalização — espelha os reasons de GET /health/ollama
+// mais 'unknown' (check pendente); http_error/ok/api_key_missing são os únicos reasons
+// que o backend pode retornar (ver OllamaHealthResponse em prices.py).
+type OllamaStatus = 'unknown' | 'ok' | 'api_key_missing' | 'http_error'
+
 // ---------------------------------------------------------------------------
 // Interfaces — espelham os modelos Pydantic do backend
 // ---------------------------------------------------------------------------
@@ -106,14 +111,12 @@ function ResultView({
   isSaving: boolean
   saveStatus: 'idle' | 'success' | 'already_saved' | 'error'
   saveError: string | null
-  ollamaStatus: 'unknown' | 'ok' | 'api_key_missing' | 'connection_error' | 'timeout' | 'http_error'
+  ollamaStatus: OllamaStatus
 }) {
   const OLLAMA_MESSAGES: Record<string, string> = {
     ok:              '✅ Normalização ativa',
     api_key_missing: '⚠️ GROQ_API_KEY não configurada — cupom será salvo sem normalização de nomes',
     http_error:      '⚠️ GROQ_API_KEY inválida ou expirada — cupom será salvo sem normalização de nomes',
-    timeout:         '⚠️ Groq indisponível no momento — cupom será salvo sem normalização de nomes',
-    connection_error:'⚠️ Groq indisponível no momento — cupom será salvo sem normalização de nomes',
   }
 
   return (
@@ -242,14 +245,22 @@ export function QrReader() {
   const [retrying, setRetrying] = useState(false)
 
   // Status da normalização Ollama — 'unknown' enquanto o health check está pendente
-  const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'ok' | 'api_key_missing' | 'connection_error' | 'timeout' | 'http_error'>('unknown')
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>('unknown')
+  // Ignora respostas de checagens antigas (ex: usuário rescaneou antes da anterior responder)
+  const ollamaFetchId = useRef(0)
 
   useEffect(() => {
     if (status !== 'success') return
+    const fetchId = ++ollamaFetchId.current
     fetch(`${API_URL}/health/ollama`)
       .then(r => r.json())
-      .then(data => setOllamaStatus(data.reason ?? (data.status === 'ok' ? 'ok' : 'connection_error')))
-      .catch(() => setOllamaStatus('ok'))  // se o scan funcionou, o backend está no ar
+      .then((data: { reason: OllamaStatus }) => {
+        if (fetchId === ollamaFetchId.current) setOllamaStatus(data.reason)
+      })
+      .catch(() => {
+        // se o scan funcionou, o backend está no ar
+        if (fetchId === ollamaFetchId.current) setOllamaStatus('ok')
+      })
   }, [status])
 
   // Estados do salvamento (separados do status principal para não esconder o recibo)
