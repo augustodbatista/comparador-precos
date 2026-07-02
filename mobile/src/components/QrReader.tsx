@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import jsQR from 'jsqr'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import {
   IonAlert,
   IonBadge,
@@ -11,6 +12,7 @@ import {
   IonContent,
   IonGrid,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -20,11 +22,13 @@ import {
   IonToolbar,
   IonToast,
 } from '@ionic/react'
+import { cameraOutline, scanOutline } from 'ionicons/icons'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'
 
 const SCANNER_ID = 'qr-reader-container'
+const SCAN_INTERVAL_MS = 90
 
 export interface IssuerData {
   name: string
@@ -72,28 +76,205 @@ function formatError(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
-function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
-  const initialized = useRef(false)
+function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Promise<void> }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
+  const lastScanRef = useRef(0)
+  const scannedRef = useRef(false)
+  const [cameraStatus, setCameraStatus] = useState<'idle' | 'opening' | 'ready' | 'error'>('idle')
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [scanHint, setScanHint] = useState('Abra a camera para iniciar a leitura.')
 
   useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
+    return stopCamera
+  }, [])
 
-    const scanner = new Html5QrcodeScanner(
-      SCANNER_ID,
-      { fps: 10, qrbox: { width: 280, height: 280 } },
-      false,
-    )
-
-    scanner.render(
-      (text) => onScan(parseNfceQr(text)),
-      () => {},
-    )
-
-    return () => {
-      scanner.clear().catch(() => {})
+  function stopCamera() {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
     }
-  }, [onScan])
+
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+
+    if (videoRef.current) {
+      videoRef.current.pause()
+      videoRef.current.srcObject = null
+    }
+  }
+
+  function decodeCanvas(width: number, height: number) {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d', { willReadFrequently: true })
+    if (!canvas || !context) return null
+
+    const imageData = context.getImageData(0, 0, width, height)
+    return jsQR(imageData.data, width, height, { inversionAttempts: 'attemptBoth' })
+  }
+
+  async function handleDecodedText(text: string) {
+    const data = parseNfceQr(text)
+
+    if (!data) {
+      setScanHint('QR encontrado, mas nao parece ser NFC-e. Tente enquadrar o QR do cupom fiscal.')
+      return
+    }
+
+    scannedRef.current = true
+    setScanHint('QR lido. Buscando nota...')
+    stopCamera()
+    await onScan(data)
+  }
+
+  function scanFrame() {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d', { willReadFrequently: true })
+
+    if (!video || !canvas || !context || scannedRef.current) return
+
+    const now = performance.now()
+    const width = video.videoWidth
+    const height = video.videoHeight
+
+    if (width > 0 && height > 0 && now - lastScanRef.current >= SCAN_INTERVAL_MS) {
+      lastScanRef.current = now
+      setScanHint('Procurando QR Code...')
+
+      const cropSize = Math.floor(Math.min(width, height) * 0.92)
+      const cropX = Math.floor((width - cropSize) / 2)
+      const cropY = Math.floor((height - cropSize) / 2)
+
+      canvas.width = cropSize
+      canvas.height = cropSize
+      context.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize)
+
+      const croppedResult = decodeCanvas(cropSize, cropSize)
+      if (croppedResult?.data) {
+        void handleDecodedText(croppedResult.data)
+        return
+      }
+
+      canvas.width = width
+      canvas.height = height
+      context.drawImage(video, 0, 0, width, height)
+
+      const fullFrameResult = decodeCanvas(width, height)
+      if (fullFrameResult?.data) {
+        void handleDecodedText(fullFrameResult.data)
+        return
+      }
+    }
+
+    animationFrameRef.current = requestAnimationFrame(scanFrame)
+  }
+
+  async function scanImageSource(imageUrl: string, revokeAfterScan = false) {
+    const canvas = canvasRef.current
+    const context = canvas?.getContext('2d', { willReadFrequently: true })
+    if (!canvas || !context) return
+
+    const image = new Image()
+
+    try {
+      setScanHint('Lendo imagem...')
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error('Nao foi possivel carregar a imagem.'))
+        image.src = imageUrl
+      })
+
+      const maxSize = 1800
+      const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight))
+      const width = Math.max(1, Math.floor(image.naturalWidth * scale))
+      const height = Math.max(1, Math.floor(image.naturalHeight * scale))
+      canvas.width = width
+      canvas.height = height
+      context.drawImage(image, 0, 0, width, height)
+
+      const result = decodeCanvas(width, height)
+      if (!result?.data) {
+        setCameraStatus('error')
+        setCameraError('Nao consegui ler QR Code nessa imagem. Tente tirar a foto mais perto e com boa luz.')
+        return
+      }
+
+      await handleDecodedText(result.data)
+    } catch (error) {
+      setCameraStatus('error')
+      setCameraError(formatError(error, 'Nao foi possivel ler a imagem.'))
+    } finally {
+      if (revokeAfterScan) URL.revokeObjectURL(imageUrl)
+    }
+  }
+
+  async function openNativeCamera() {
+    try {
+      stopCamera()
+      setCameraStatus('opening')
+      setCameraError(null)
+      setScanHint('Abrindo camera do Android...')
+
+      const photo = await Camera.getPhoto({
+        quality: 100,
+        correctOrientation: true,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+      })
+
+      if (!photo.dataUrl) {
+        throw new Error('A camera nao retornou uma imagem para leitura.')
+      }
+
+      await scanImageSource(photo.dataUrl)
+    } catch (error) {
+      setCameraStatus('error')
+      setCameraError(formatError(error, 'Nao foi possivel abrir a camera do Android.'))
+      setScanHint('Tente novamente com boa luz e o QR Code preenchendo bem a foto.')
+    }
+  }
+
+  async function startScanner() {
+    setCameraStatus('opening')
+    setCameraError(null)
+    setScanHint('Abrindo camera...')
+    scannedRef.current = false
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus('error')
+      setCameraError('Este Android/WebView nao liberou acesso a camera para o app.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      })
+      const video = videoRef.current
+      if (!video) throw new Error('Preview da camera nao encontrado.')
+
+      streamRef.current = stream
+      video.srcObject = stream
+      video.setAttribute('playsinline', 'true')
+      await video.play()
+      setCameraStatus('ready')
+      setScanHint('Aponte para o QR Code e mantenha o celular parado.')
+      animationFrameRef.current = requestAnimationFrame(scanFrame)
+    } catch (error) {
+      stopCamera()
+      setCameraStatus('error')
+      setCameraError(formatError(error, 'Nao foi possivel abrir a camera.'))
+    }
+  }
 
   return (
     <IonCard>
@@ -102,7 +283,44 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void }) {
       </IonCardHeader>
       <IonCardContent>
         <p className="muted centered">Aponte a câmera para o QR Code do cupom fiscal</p>
-        <div id={SCANNER_ID} className="scanner-box" />
+        <div className="scanner-actions">
+          {cameraStatus !== 'ready' && (
+            <IonButton
+              expand="block"
+              onClick={startScanner}
+              disabled={cameraStatus === 'opening'}
+              data-testid="open-camera-btn"
+            >
+              <IonIcon icon={scanOutline} slot="start" />
+              {cameraStatus === 'opening' ? 'Abrindo camera...' : 'Abrir camera'}
+            </IonButton>
+          )}
+          <IonButton
+            expand="block"
+            fill="outline"
+            onClick={openNativeCamera}
+          >
+            <IonIcon icon={cameraOutline} slot="start" />
+            Abrir camera do Android
+          </IonButton>
+        </div>
+        {cameraStatus === 'error' && (
+          <div className="inline-alert" role="alert">
+            {cameraError}
+          </div>
+        )}
+        <p className="scanner-hint" aria-live="polite">{scanHint}</p>
+        <div id={SCANNER_ID} className="scanner-box">
+          <video
+            ref={videoRef}
+            className="scanner-video"
+            muted
+            playsInline
+            data-testid="scanner-video"
+          />
+          <div className="scanner-frame" aria-hidden="true" />
+          <canvas ref={canvasRef} className="scanner-canvas" aria-hidden="true" />
+        </div>
       </IonCardContent>
     </IonCard>
   )
