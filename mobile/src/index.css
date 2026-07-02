@@ -189,8 +189,19 @@ ion-tab-bar {
 }
 
 .product-list {
-  max-height: 260px;
+  display: block;
+  max-height: min(48vh, 420px);
+  min-height: 120px;
+  overscroll-behavior: contain;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.product-list ion-item {
+  min-height: 48px;
 }
 
 .price-result h3 {
