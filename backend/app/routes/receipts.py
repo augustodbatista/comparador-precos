@@ -12,12 +12,12 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
-from app.db.repositories.prices import insert_prices
+from app.db.repositories.prices import insert_prices, find_product_ids_by_description
 from app.db.repositories.products import upsert_product, list_all_product_names
 from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 from app.services.html_parser import ParseError, parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError, fetch_nfce_html
-from app.services.normalizer import normalize_items
+from app.services.normalizer import normalize_items, pre_process, is_regression
 from app.services.qr_parser import parse_qr_nfce
 
 router = APIRouter()
@@ -151,10 +151,22 @@ async def save_receipt(body: ReceiptData, request: Request, response: Response) 
     existing_names = await list_all_product_names(db)
     normalized = await normalize_items(descriptions, existing_names)
 
+    # Se a descrição já tem um product_id bom de uma compra anterior, não deixa
+    # uma normalização pior desta chamada (LLM fora, ou canonicalize numa âncora
+    # ruim) sobrescrevê-lo — mesma guarda usada em scripts/dedup_and_renormalize.py.
+    current_product_ids = await find_product_ids_by_description(db, descriptions)
+    final_names = []
+    for desc, norm in zip(descriptions, normalized):
+        current = current_product_ids.get(desc)
+        if current and (norm == pre_process(desc) or is_regression(norm, current)):
+            final_names.append(current)
+        else:
+            final_names.append(norm)
+
     # Substitui o normalized_name de cada item pelo resultado do Ollama
     items = [
         item.model_copy(update={"normalized_name": name})
-        for item, name in zip(body.items, normalized)
+        for item, name in zip(body.items, final_names)
     ]
     body = body.model_copy(update={"items": items})
 

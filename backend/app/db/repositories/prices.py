@@ -79,6 +79,24 @@ async def insert_prices(db: AsyncIOMotorDatabase, receipt: dict, items: list[dic
     await db[COLLECTION].insert_many(docs)
 
 
+async def find_product_ids_by_description(db: AsyncIOMotorDatabase, descriptions: list[str]) -> dict[str, str]:
+    """Mapeia original_description -> product_id já registrado (primeira ocorrência).
+
+    Usado para não deixar uma normalização pior desta chamada sobrescrever um
+    product_id já bom de uma compra anterior da mesma descrição bruta.
+    """
+    if not descriptions:
+        return {}
+    cursor = db[COLLECTION].find(
+        {"original_description": {"$in": descriptions}},
+        {"_id": 0, "original_description": 1, "product_id": 1},
+    )
+    result: dict[str, str] = {}
+    async for doc in cursor:
+        result.setdefault(doc["original_description"], doc["product_id"])
+    return result
+
+
 async def get_latest_price(db: AsyncIOMotorDatabase, product_id: str) -> dict | None:
     """Retorna o documento de preço com a purchase_date mais recente para o produto.
 

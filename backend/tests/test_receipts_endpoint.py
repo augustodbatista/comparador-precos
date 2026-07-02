@@ -185,6 +185,38 @@ class TestPostReceipts:
         unique_ids = {p["product_id"] for p in prices}
         assert len(products) == len(unique_ids)
 
+    async def test_mantem_product_id_existente_quando_normalizacao_regride(self, client):
+        """Se a descrição já tem um product_id bom no banco (de um cupom anterior),
+        uma normalização pior nesta chamada não deve sobrescrevê-lo."""
+        body = await self._get_parsed_body(client)
+        body["items"][0]["description"] = "LEITE LV CAMPONESA"
+
+        await app.state.db["prices"].insert_one({
+            "product_id": "Leite Longa Vida Camponesa",
+            "receipt_id": "0" * 44,
+            "original_description": "LEITE LV CAMPONESA",
+            "internal_code": "999",
+            "quantity": 1, "unit": "UN", "unit_price": 1.0, "total_value": 1.0,
+            "purchase_date": "2026-01-01T00:00:00",
+            "invoice_number": "1", "invoice_series": "1", "invoice_model": "65",
+            "issuer_cnpj": "0", "issuer_name": "x", "issuer_address": "x",
+            "receipt_url": "https://x",
+            "created_at": datetime.now(timezone.utc),
+        })
+
+        async def _regressed(descriptions, existing_names=None):
+            # simula LLM/canonicalize caindo de volta pro nome bruto pro primeiro item
+            return ["LEITE LV CAMPONESA" if d == "LEITE LV CAMPONESA" else d for d in descriptions]
+
+        with patch("app.routes.receipts.normalize_items", new=_regressed):
+            response = await client.post("/receipts", json=body)
+
+        assert response.status_code == 201
+        saved = await app.state.db["prices"].find_one({
+            "receipt_id": VALID_KEY, "original_description": "LEITE LV CAMPONESA"
+        })
+        assert saved["product_id"] == "Leite Longa Vida Camponesa"
+
     async def test_retorna_422_sem_body(self, client):
         response = await client.post("/receipts")
         assert response.status_code == 422
