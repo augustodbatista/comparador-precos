@@ -241,7 +241,12 @@ export function PriceConsultation() {
             />
 
             {showList && (
-              <IonList inset className="product-list">
+              <IonList
+                inset
+                className="product-list"
+                onTouchMove={(event) => event.stopPropagation()}
+                onWheel={(event) => event.stopPropagation()}
+              >
                 {filtered.map((product, index) => (
                   <IonItem button key={`${product.normalized_name}-${index}`} onClick={() => handleSelect(product)}>
                     <IonLabel>{productLabel(product)}</IonLabel>
