@@ -1,12 +1,19 @@
 :root {
   --ion-font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ion-color-primary: #0f8f72;
-  --ion-color-primary-rgb: 15, 143, 114;
+  --ion-color-primary: #04796a;
+  --ion-color-primary-rgb: 4, 121, 106;
   --ion-color-primary-contrast: #ffffff;
   --ion-color-success: #168052;
   --ion-color-warning: #b7791f;
-  --ion-background-color: #f6f8fb;
-  --ion-text-color: #14213d;
+  --ion-background-color: #f4f7f6;
+  --ion-text-color: #162033;
+  --surface: #ffffff;
+  --surface-soft: #f8fbfa;
+  --line: #dce8e4;
+  --text-muted: #64748b;
+  --accent-blue: #2563eb;
+  --accent-amber: #d97706;
+  --shadow-soft: 0 12px 32px rgb(15 23 42 / 0.09);
 }
 
 * {
@@ -21,21 +28,54 @@ body {
 ion-content::part(scroll) {
   max-width: 720px;
   margin: 0 auto;
+  padding-bottom: 1rem;
+}
+
+ion-content {
+  --background:
+    radial-gradient(circle at 18% 0%, rgb(4 121 106 / 0.08), transparent 28rem),
+    linear-gradient(180deg, #f5faf8 0%, #eef4f2 100%);
+}
+
+ion-toolbar {
+  --background: rgb(255 255 255 / 0.92);
+  --border-color: rgb(220 232 228 / 0.95);
+  --color: #162033;
+  backdrop-filter: blur(14px);
+}
+
+ion-header {
+  box-shadow: 0 1px 0 rgb(15 23 42 / 0.04);
 }
 
 ion-card {
-  border: 1px solid #dfe7ef;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 3px 10px rgb(20 33 61 / 0.08);
+  box-shadow: var(--shadow-soft);
+  margin: 0.9rem 0 1rem;
+  overflow: hidden;
 }
 
 ion-card-title {
-  font-size: 1.15rem;
+  color: #162033;
+  font-size: 1.05rem;
+  font-weight: 800;
   letter-spacing: 0;
 }
 
+ion-card-header {
+  padding-bottom: 0.55rem;
+}
+
+ion-card-content {
+  padding-top: 0.55rem;
+}
+
 .section-heading {
-  font-size: 1.15rem;
+  color: #162033;
+  font-size: 1.05rem;
+  font-weight: 800;
   letter-spacing: 0;
   margin: 0 0 0.8rem;
 }
@@ -51,8 +91,47 @@ ion-item p {
 }
 
 ion-tab-bar {
+  --background: rgb(255 255 255 / 0.96);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 24px rgb(15 23 42 / 0.08);
+  min-height: 66px;
+}
+
+ion-tab-button {
+  --color: #64748b;
+  --color-selected: #04796a;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+ion-button {
+  --border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: 0;
+  min-height: 46px;
+}
+
+ion-input {
+  --background: #f8fafc;
+  --border-color: #dbe7e4;
+  --border-radius: 8px;
+  --highlight-color-focused: #04796a;
+  border: 1px solid #dbe7e4;
+  border-radius: 8px;
+  margin-top: 0.35rem;
+  overflow: hidden;
+}
+
+ion-list[inset] {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+ion-item {
   --background: #ffffff;
-  border-top: 1px solid #dfe7ef;
+  --border-color: #e4eeeb;
+  --inner-padding-end: 0.8rem;
 }
 
 .toolbar-logo {
@@ -69,6 +148,8 @@ ion-tab-bar {
   display: inline-flex;
   gap: 0.5rem;
   max-width: 100%;
+  font-size: 1rem;
+  font-weight: 850;
 }
 
 .toolbar-logo-small {
@@ -79,7 +160,7 @@ ion-tab-bar {
 }
 
 .muted {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -88,15 +169,62 @@ ion-tab-bar {
 }
 
 .scanner-box {
-  min-height: 320px;
+  background: #101827;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  margin-top: 0.9rem;
+  min-height: min(72vh, 560px);
+  overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
-.scanner-box video {
+.scanner-video {
   border-radius: 8px;
+  display: block;
+  min-height: min(72vh, 560px);
+  max-height: min(72vh, 560px);
+  object-fit: cover;
+  width: 100% !important;
+}
+
+.scanner-frame {
+  aspect-ratio: 1;
+  border: 3px solid rgb(255 255 255 / 0.92);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 999px rgb(15 23 42 / 0.28),
+    0 0 26px rgb(4 121 106 / 0.28);
+  left: 50%;
+  max-width: 460px;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 82%;
+}
+
+.scanner-hint {
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 650;
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.scanner-canvas {
+  display: none;
+}
+
+.scanner-actions {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 1fr;
+  margin-top: 0.85rem;
 }
 
 .receipt-meta {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.88rem;
   line-height: 1.45;
   margin-top: 0.4rem;
@@ -111,8 +239,8 @@ ion-tab-bar {
 
 .receipt-total {
   align-items: center;
-  background: #eef7f4;
-  border: 1px solid #cce6de;
+  background: #edf8f5;
+  border: 1px solid #c3e5dc;
   border-radius: 8px;
   display: flex;
   justify-content: space-between;
@@ -122,7 +250,7 @@ ion-tab-bar {
 
 .receipt-total strong,
 .price-value {
-  color: #0f8f72;
+  color: #04796a;
   font-size: 1.35rem;
 }
 
@@ -140,6 +268,7 @@ ion-tab-bar {
 
 .loading-card {
   align-items: center;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
@@ -184,7 +313,7 @@ ion-tab-bar {
 
 .accordion-content {
   background: #ffffff;
-  border-bottom: 1px solid #dfe7ef;
+  border-bottom: 1px solid var(--line);
   padding: 0.8rem;
 }
 
@@ -205,8 +334,25 @@ ion-tab-bar {
 }
 
 .price-result h3 {
+  color: #162033;
   font-size: 1rem;
+  font-weight: 850;
   margin: 0.5rem 0 0.2rem;
+}
+
+.price-result {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 0.85rem;
+  padding: 0.9rem;
+}
+
+.price-result a,
+.accordion-content a {
+  color: var(--accent-blue);
+  font-weight: 750;
+  text-decoration: none;
 }
 
 .summary-grid {
@@ -217,14 +363,14 @@ ion-tab-bar {
 }
 
 .summary-grid div {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.7rem;
 }
 
 .summary-grid span {
-  color: #64748b;
+  color: var(--text-muted);
   display: block;
   font-size: 0.75rem;
   margin-bottom: 0.25rem;
@@ -247,6 +393,11 @@ ion-tab-bar {
   }
 
   .scanner-box {
-    min-height: 280px;
+    min-height: min(68vh, 480px);
+  }
+
+  ion-card {
+    margin-left: 0;
+    margin-right: 0;
   }
 }
