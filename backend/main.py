@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.connection import create_indexes, get_client, get_db
+from app.repositories.connection import create_indexes, get_client, get_db
 from app.routes.receipts import router as receipts_router
 from app.routes.prices import router as prices_router
 

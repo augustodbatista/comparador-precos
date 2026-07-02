@@ -13,8 +13,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from app.db.repositories.prices import get_latest_price, get_lowest_price, get_price_history
-from app.db.repositories.products import list_products
+from app.repositories.prices import get_latest_price, get_lowest_price, get_price_history
+from app.repositories.products import list_products
 
 router = APIRouter()
 

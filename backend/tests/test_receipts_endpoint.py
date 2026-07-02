@@ -108,7 +108,7 @@ class TestGetReceipts:
             pass
 
         # Insere diretamente no banco para simular cupom já salvo
-        from app.db.repositories.receipts import insert_receipt
+        from app.repositories.receipts import insert_receipt
         from app.services.html_parser import parse_nfce_html
         from app.services.qr_parser import parse_qr_nfce
         nfce = parse_qr_nfce(VALID_URL)

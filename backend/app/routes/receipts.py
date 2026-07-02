@@ -12,9 +12,9 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
-from app.db.repositories.prices import insert_prices, find_product_ids_by_description
-from app.db.repositories.products import upsert_product, list_all_product_names
-from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
+from app.repositories.prices import insert_prices, find_product_ids_by_description
+from app.repositories.products import upsert_product, list_all_product_names
+from app.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 from app.services.html_parser import ParseError, parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError, fetch_nfce_html
 from app.services.normalizer import normalize_items, pre_process, is_regression
