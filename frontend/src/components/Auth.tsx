@@ -24,23 +24,34 @@ const STRENGTH_STYLE: Record<Strength['level'], { color: string; width: string }
   forte: { color: '#16a34a', width: '100%' },
 }
 
+const inputStyle = { width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '6px' }
+
 export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => void }) {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [phone, setPhone] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const strength = passwordStrength(password)
+  const pwType = showPassword ? 'text' : 'password'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (mode === 'signup' && password.length < 8) {
-      setError('A senha deve ter pelo menos 8 caracteres.')
-      return
+    if (mode === 'signup') {
+      if (password.length < 8) {
+        setError('A senha deve ter pelo menos 8 caracteres.')
+        return
+      }
+      if (password !== confirmPassword) {
+        setError('As senhas não coincidem.')
+        return
+      }
     }
 
     setIsSubmitting(true)
@@ -68,6 +79,17 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
     }
   }
 
+  const eyeButton = (
+    <button
+      type="button"
+      onClick={() => setShowPassword(s => !s)}
+      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+      style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}
+    >
+      {showPassword ? '🙈' : '👁'}
+    </button>
+  )
+
   return (
     <div className="card" style={{ maxWidth: '360px', margin: '2rem auto' }}>
       <h2 style={{ marginBottom: '1rem' }}>{mode === 'login' ? 'Entrar' : 'Criar conta'}</h2>
@@ -87,7 +109,7 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
-            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+            style={inputStyle}
           />
         </div>
 
@@ -101,21 +123,24 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
               onChange={e => setPhone(e.target.value)}
               required
               placeholder="(11) 91234-5678"
-              style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
+              style={inputStyle}
             />
           </div>
         )}
 
         <div style={{ marginBottom: mode === 'signup' && password.length > 0 ? '0.5rem' : '1rem' }}>
           <label htmlFor="auth-password" style={{ display: 'block', marginBottom: '0.25rem' }}>Senha</label>
-          <input
-            id="auth-password"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '6px' }}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              id="auth-password"
+              type={pwType}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              style={{ ...inputStyle, paddingRight: '2.5rem' }}
+            />
+            {eyeButton}
+          </div>
         </div>
 
         {/* Medidor de força — só no cadastro e enquanto há senha digitada. Apenas informativo. */}
@@ -127,6 +152,20 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
             <span style={{ fontSize: '0.8rem', color: STRENGTH_STYLE[strength.level].color }}>
               Força: {strength.label}
             </span>
+          </div>
+        )}
+
+        {mode === 'signup' && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label htmlFor="auth-confirm-password" style={{ display: 'block', marginBottom: '0.25rem' }}>Confirmar senha</label>
+            <input
+              id="auth-confirm-password"
+              type={pwType}
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+              style={inputStyle}
+            />
           </div>
         )}
 

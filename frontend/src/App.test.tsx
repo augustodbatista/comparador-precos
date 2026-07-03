@@ -45,7 +45,7 @@ describe('App', () => {
     render(<App />)
 
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
     await userEvent.click(screen.getByRole('button', { name: /entrar/i }))
 
     expect(await screen.findByText('Scanner mock')).toBeInTheDocument()
