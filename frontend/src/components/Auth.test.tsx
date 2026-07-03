@@ -35,7 +35,7 @@ describe('Auth', () => {
     render(<Auth onAuthenticated={onAuthenticated} />)
 
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
     await userEvent.click(screen.getByRole('button', { name: /entrar/i }))
 
     await waitFor(() => {
@@ -52,7 +52,7 @@ describe('Auth', () => {
     render(<Auth onAuthenticated={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senhaerrada')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senhaerrada')
     await userEvent.click(screen.getByRole('button', { name: /entrar/i }))
 
     await waitFor(() => {
@@ -71,7 +71,8 @@ describe('Auth', () => {
     await userEvent.click(screen.getByText(/criar conta/i))
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
     await userEvent.type(screen.getByLabelText(/telefone/i), '11912345678')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
+    await userEvent.type(screen.getByLabelText(/confirmar senha/i), 'senha1234')
     await userEvent.click(screen.getByRole('button', { name: /cadastrar/i }))
 
     await waitFor(() => {
@@ -90,7 +91,8 @@ describe('Auth', () => {
     await userEvent.click(screen.getByText(/criar conta/i))
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
     await userEvent.type(screen.getByLabelText(/telefone/i), '11912345678')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
+    await userEvent.type(screen.getByLabelText(/confirmar senha/i), 'senha1234')
     await userEvent.click(screen.getByRole('button', { name: /cadastrar/i }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -100,10 +102,40 @@ describe('Auth', () => {
     expect(sentBody.email).toBe('user@example.com')
   })
 
+  it('bloqueia o cadastro quando a confirmação de senha não bate', async () => {
+    render(<Auth onAuthenticated={vi.fn()} />)
+
+    await userEvent.click(screen.getByText(/criar conta/i))
+    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
+    await userEvent.type(screen.getByLabelText(/telefone/i), '11912345678')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
+    await userEvent.type(screen.getByLabelText(/confirmar senha/i), 'senha9999')
+    await userEvent.click(screen.getByRole('button', { name: /cadastrar/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/senhas não coincidem/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('permite mostrar e ocultar a senha', async () => {
+    render(<Auth onAuthenticated={vi.fn()} />)
+
+    // Login: senha começa oculta, botão de olho revela e volta a ocultar
+    const pw = screen.getByLabelText('Senha')
+    expect(pw).toHaveAttribute('type', 'password')
+    await userEvent.click(screen.getByRole('button', { name: /mostrar senha/i }))
+    expect(pw).toHaveAttribute('type', 'text')
+    await userEvent.click(screen.getByRole('button', { name: /ocultar senha/i }))
+    expect(pw).toHaveAttribute('type', 'password')
+
+    // O toggle também existe na tela de cadastro
+    await userEvent.click(screen.getByText(/criar conta/i))
+    expect(screen.getByRole('button', { name: /mostrar senha/i })).toBeInTheDocument()
+  })
+
   it('medidor de força mostra Fraca / Média / Forte conforme a senha no cadastro', async () => {
     render(<Auth onAuthenticated={vi.fn()} />)
     await userEvent.click(screen.getByText(/criar conta/i))
-    const pw = screen.getByLabelText(/senha/i)
+    const pw = screen.getByLabelText('Senha')
 
     await userEvent.type(pw, 'abc')
     expect(screen.getByTestId('password-strength')).toHaveTextContent(/fraca/i)
@@ -119,7 +151,7 @@ describe('Auth', () => {
 
   it('medidor de força não aparece no modo login', async () => {
     render(<Auth onAuthenticated={vi.fn()} />)
-    await userEvent.type(screen.getByLabelText(/senha/i), 'Abcdef1!')
+    await userEvent.type(screen.getByLabelText('Senha'), 'Abcdef1!')
     expect(screen.queryByTestId('password-strength')).not.toBeInTheDocument()
   })
 
@@ -128,7 +160,7 @@ describe('Auth', () => {
     render(<Auth onAuthenticated={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha1234')
     const btn = screen.getByRole('button', { name: /entrar/i })
     await userEvent.click(btn)
 
