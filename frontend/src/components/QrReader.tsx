@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
-import { API_URL } from '../config/api'
+import { API_URL, apiFetch } from '../config/api'
 
 // ID do elemento HTML onde a biblioteca html5-qrcode injeta a câmera
 const SCANNER_ID = 'qr-reader-container'
@@ -252,7 +252,7 @@ export function QrReader() {
   useEffect(() => {
     if (status !== 'success') return
     const fetchId = ++ollamaFetchId.current
-    fetch(`${API_URL}/health/ollama`)
+    apiFetch(`${API_URL}/health/ollama`)
       .then(r => r.json())
       .then((data: { reason: OllamaStatus }) => {
         if (fetchId === ollamaFetchId.current) setOllamaStatus(data.reason)
@@ -298,7 +298,7 @@ export function QrReader() {
     const timeoutId = setTimeout(() => controller.abort(), 60000)
 
     const doFetch = () =>
-      fetch(`${API_URL}/receipts?url=${encodeURIComponent(data.url)}`, {
+      apiFetch(`${API_URL}/receipts?url=${encodeURIComponent(data.url)}`, {
         signal: controller.signal,
       })
 
@@ -355,7 +355,7 @@ export function QrReader() {
     setSaveError(null)
 
     try {
-      const response = await fetch(`${API_URL}/receipts`, {
+      const response = await apiFetch(`${API_URL}/receipts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
