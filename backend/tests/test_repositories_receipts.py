@@ -1,5 +1,5 @@
 """
-Testes unitários para app/db/repositories/receipts.py.
+Testes unitários para app/repositories/receipts.py.
 Usa mongomock-motor como banco in-memory — sem conexão real ao Atlas.
 """
 from datetime import datetime, timezone
@@ -9,7 +9,7 @@ import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from pymongo.errors import DuplicateKeyError
 
-from app.db.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
+from app.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
 
 SAMPLE_DOC = {
     "access_key": "31260621253729001979650140000347721508645310",

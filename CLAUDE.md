@@ -54,14 +54,18 @@ comparador-precos/
 │   ├── requirements.txt
 │   ├── .env.example
 │   ├── app/
-│   │   ├── routes/
+│   │   ├── models/
+│   │   │   └── receipt.py          ← IssuerData, ItemData, TotalsData, InvoiceData, ReceiptData
+│   │   ├── views/
+│   │   │   ├── price.py            ← ProductItem, PriceResponse
+│   │   │   └── health.py           ← OllamaHealthResponse
+│   │   ├── controllers/
 │   │   │   ├── receipts.py         ← GET e POST /receipts
 │   │   │   └── prices.py           ← GET /prices/latest e /prices/lowest
-│   │   ├── db/
+│   │   ├── repositories/
 │   │   │   ├── connection.py       ← get_client(), get_db()
-│   │   │   └── repositories/
-│   │   │       ├── receipts.py     ← find_by_access_key(), insert_receipt(), list_receipts()
-│   │   │       └── prices.py       ← get_latest_price(), get_lowest_price()
+│   │   │   ├── receipts.py         ← find_by_access_key(), insert_receipt(), list_receipts()
+│   │   │   └── prices.py           ← get_latest_price(), get_lowest_price()
 │   │   └── services/
 │   │       ├── qr_parser.py        ← parse_qr_nfce()
 │   │       ├── nfce_fetcher.py     ← fetch_nfce_html()
@@ -71,7 +75,8 @@ comparador-precos/
 │       ├── test_qr_parser.py
 │       ├── test_nfce_fetcher.py
 │       ├── test_html_parser.py
-│       ├── test_db_receipts.py
+│       ├── test_repositories_receipts.py
+│       ├── test_repositories_products.py
 │       ├── test_prices_endpoint.py
 │       └── test_receipts_endpoint.py
 └── frontend/
@@ -137,10 +142,13 @@ atributo, equality por valor, imutabilidade). `NamedTuple` é idiomático Python
 continuam passando sem alteração porque ambos suportam `NfceData(url=x, access_key=y)`
 e comparação com `==`.
 
-### Diretório `backend/app/models/` deletado
-Estava previsto para uma task futura mas nunca foi preenchido — continha apenas um
-`__init__.py` vazio. Código especulativo vira dívida; deletado enquanto não há nada lá.
-Os modelos Pydantic vivem em `routes/receipts.py` (onde são usados) e em `routes/prices.py`.
+### Diretório `backend/app/models/` recriado (jul/2026)
+Tinha sido deletado por estar vazio/especulativo (ver histórico do repo). A razão
+de deletar deixou de existir quando a reorganização em camadas MVC (models/views/
+controllers/services/repositories) passou a colocar conteúdo real ali —
+`ReceiptData` e os tipos aninhados (`IssuerData`, `ItemData`, `TotalsData`,
+`InvoiceData`). Os schemas que são só resposta (`ProductItem`, `PriceResponse`,
+`OllamaHealthResponse`) foram para `views/` em vez de `models/`.
 
 ## Formatos de QR Code NFC-e suportados
 

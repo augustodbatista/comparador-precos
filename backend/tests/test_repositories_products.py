@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.db.repositories.products import list_all_product_names
+from app.repositories.products import list_all_product_names
 
 
 @pytest.mark.asyncio
