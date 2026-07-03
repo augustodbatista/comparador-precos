@@ -9,7 +9,14 @@ import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from pymongo.errors import DuplicateKeyError
 
-from app.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
+from app.repositories.receipts import (
+    find_any_by_access_key,
+    find_by_access_key_for_user,
+    insert_receipt,
+    list_receipts,
+)
+
+USER_ID = "test@example.com"
 
 SAMPLE_DOC = {
     "access_key": "31260621253729001979650140000347721508645310",
@@ -39,12 +46,12 @@ async def db():
 @pytest.mark.asyncio
 class TestFindByAccessKey:
     async def test_retorna_none_quando_nao_existe(self, db):
-        result = await find_by_access_key(db, "00000000000000000000000000000000000000000000")
+        result = await find_by_access_key_for_user(db, "00000000000000000000000000000000000000000000", USER_ID)
         assert result is None
 
     async def test_retorna_doc_quando_existe(self, db):
-        await insert_receipt(db, SAMPLE_DOC.copy())
-        result = await find_by_access_key(db, SAMPLE_DOC["access_key"])
+        await insert_receipt(db, SAMPLE_DOC.copy(), USER_ID)
+        result = await find_by_access_key_for_user(db, SAMPLE_DOC["access_key"], USER_ID)
         assert result is not None
         assert result["issuer"]["name"] == "CASA RENA S/A"
 
@@ -52,41 +59,63 @@ class TestFindByAccessKey:
 @pytest.mark.asyncio
 class TestInsertReceipt:
     async def test_persiste_no_banco(self, db):
-        await insert_receipt(db, SAMPLE_DOC.copy())
+        await insert_receipt(db, SAMPLE_DOC.copy(), USER_ID)
         count = await db["receipts"].count_documents({"access_key": SAMPLE_DOC["access_key"]})
         assert count == 1
 
     async def test_retorna_doc_sem_id(self, db):
-        result = await insert_receipt(db, SAMPLE_DOC.copy())
+        result = await insert_receipt(db, SAMPLE_DOC.copy(), USER_ID)
         assert "_id" not in result
 
     async def test_duplicate_levanta_duplicate_key_error(self, db):
-        await insert_receipt(db, SAMPLE_DOC.copy())
+        await insert_receipt(db, SAMPLE_DOC.copy(), USER_ID)
         with pytest.raises(DuplicateKeyError):
-            await insert_receipt(db, SAMPLE_DOC.copy())
+            await insert_receipt(db, SAMPLE_DOC.copy(), USER_ID)
 
 
 @pytest.mark.asyncio
 class TestListReceipts:
     async def test_retorna_cupons_ordenados_por_created_at_desc(self, db):
-        older = {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc)}
-        newer = {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc)}
+        older = {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc), "user_id": USER_ID}
+        newer = {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc), "user_id": USER_ID}
         await db["receipts"].insert_many([older, newer])
 
-        result = await list_receipts(db)
+        result = await list_receipts(db, USER_ID)
 
         assert [doc["access_key"] for doc in result] == ["2" * 44, "1" * 44]
         assert "_id" not in result[0]
 
     async def test_respeita_limit_e_skip(self, db):
         docs = [
-            {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc)},
-            {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc)},
-            {**sample_doc("3" * 44), "created_at": datetime(2026, 6, 3, tzinfo=timezone.utc)},
+            {**sample_doc("1" * 44), "created_at": datetime(2026, 6, 1, tzinfo=timezone.utc), "user_id": USER_ID},
+            {**sample_doc("2" * 44), "created_at": datetime(2026, 6, 2, tzinfo=timezone.utc), "user_id": USER_ID},
+            {**sample_doc("3" * 44), "created_at": datetime(2026, 6, 3, tzinfo=timezone.utc), "user_id": USER_ID},
         ]
         await db["receipts"].insert_many(docs)
 
-        result = await list_receipts(db, limit=1, skip=1)
+        result = await list_receipts(db, USER_ID, limit=1, skip=1)
 
         assert len(result) == 1
         assert result[0]["access_key"] == "2" * 44
+
+
+@pytest.mark.asyncio
+class TestFindByAccessKeyForUser:
+    async def test_retorna_none_para_outro_dono(self, db):
+        await insert_receipt(db, SAMPLE_DOC.copy(), "dono@example.com")
+        result = await find_by_access_key_for_user(db, SAMPLE_DOC["access_key"], "outro@example.com")
+        assert result is None
+
+    async def test_retorna_doc_para_o_dono_correto(self, db):
+        await insert_receipt(db, SAMPLE_DOC.copy(), "dono@example.com")
+        result = await find_by_access_key_for_user(db, SAMPLE_DOC["access_key"], "dono@example.com")
+        assert result is not None
+
+
+@pytest.mark.asyncio
+class TestFindAnyByAccessKey:
+    async def test_retorna_doc_independente_do_dono(self, db):
+        await insert_receipt(db, SAMPLE_DOC.copy(), "dono@example.com")
+        result = await find_any_by_access_key(db, SAMPLE_DOC["access_key"])
+        assert result is not None
+        assert result["access_key"] == SAMPLE_DOC["access_key"]

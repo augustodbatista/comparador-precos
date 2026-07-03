@@ -5,13 +5,15 @@ Responsabilidade: armazenar apenas o cabeçalho do cupom (issuer, invoice, total
 Os itens individuais vivem em 'prices' — um documento por item — para facilitar
 a comparação de preços entre lojas sem duplicar dados do cabeçalho.
 
-Regra de unicidade: access_key tem índice unique no MongoDB.
-Inserir um cupom já existente lança DuplicateKeyError (capturado no route).
+Regra de unicidade: access_key tem índice unique no MongoDB (globalmente único,
+não composto com user_id). 'receipts' é privado por usuário via o campo user_id
+em cada documento — inserir um cupom já existente lança DuplicateKeyError
+(capturado no controller).
 """
 from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo.errors import DuplicateKeyError  # noqa: F401 — reexportado para uso nos routes
+from pymongo.errors import DuplicateKeyError  # noqa: F401 — reexportado para uso nos controllers
 
 # Nome da collection no banco
 COLLECTION = "receipts"
@@ -38,7 +40,7 @@ async def _attach_items(db: AsyncIOMotorDatabase, receipt: dict) -> dict:
     """Busca os itens de 'prices' e injeta no documento de receipt antes de retornar.
 
     O cabeçalho é salvo sem items[] para evitar duplicação de dados.
-    Esta função reconstrói o array ao ler — transparente para os routes.
+    Esta função reconstrói o array ao ler — transparente para os controllers.
     """
     prices = await (
         db["prices"]
@@ -49,47 +51,47 @@ async def _attach_items(db: AsyncIOMotorDatabase, receipt: dict) -> dict:
     return receipt
 
 
-async def find_by_access_key(db: AsyncIOMotorDatabase, access_key: str) -> dict | None:
-    """Busca um cupom pela chave de acesso de 44 dígitos, incluindo os itens de 'prices'.
+async def find_by_access_key_for_user(db: AsyncIOMotorDatabase, access_key: str, user_id: str) -> dict | None:
+    """Busca um cupom que PERTENCE a este usuário. Usado por GET ?url= (cache check)."""
+    doc = await db[COLLECTION].find_one({"access_key": access_key, "user_id": user_id}, {"_id": 0})
+    if not doc:
+        return None
+    return await _attach_items(db, doc)
 
-    Retorna None se o cupom não existir no banco.
+
+async def find_any_by_access_key(db: AsyncIOMotorDatabase, access_key: str) -> dict | None:
+    """Busca um cupom independente do dono. USO INTERNO APENAS — só pra resolver
+    conflito de DuplicateKeyError no POST (decidir 200-próprio vs 409-de-outro).
+    Nunca retornar diretamente ao cliente sem checar owner == current_user antes.
     """
     doc = await db[COLLECTION].find_one({"access_key": access_key}, {"_id": 0})
     if not doc:
         return None
-    # Anexa os itens vindos de 'prices' antes de retornar
     return await _attach_items(db, doc)
 
 
-async def list_receipts(db: AsyncIOMotorDatabase, *, limit: int = 50, skip: int = 0) -> list[dict]:
-    """Lista cupons do mais recente ao mais antigo, com os itens incluídos em cada um.
-
-    Usa paginação via limit/skip para evitar carregar todos os documentos de uma vez.
-    """
+async def list_receipts(db: AsyncIOMotorDatabase, user_id: str, *, limit: int = 50, skip: int = 0) -> list[dict]:
+    """Lista cupons DO USUÁRIO do mais recente ao mais antigo, com os itens incluídos."""
     cursor = (
         db[COLLECTION]
-        .find({}, {"_id": 0})
-        .sort("created_at", -1)  # mais recente primeiro
+        .find({"user_id": user_id}, {"_id": 0})
+        .sort("created_at", -1)
         .skip(skip)
         .limit(limit)
     )
     receipts = await cursor.to_list(length=limit)
-    # Anexa os itens de cada receipt — uma query por cupom (aceitável para volumes pequenos)
     return [await _attach_items(db, r) for r in receipts]
 
 
-async def insert_receipt(db: AsyncIOMotorDatabase, doc: dict) -> dict:
-    """Insere o cabeçalho do cupom na collection 'receipts' (sem o array items[]).
+async def insert_receipt(db: AsyncIOMotorDatabase, doc: dict, user_id: str) -> dict:
+    """Insere o cabeçalho do cupom, associado ao usuário que salvou.
 
     - Remove items[] do documento antes de inserir (os itens vão para 'prices')
-    - Adiciona created_at com o horário atual em UTC
-    - Lança DuplicateKeyError se access_key já existir (capturado no route como 200)
-    - Retorna o documento inserido sem o campo _id do MongoDB
+    - Adiciona user_id e created_at
+    - Lança DuplicateKeyError se access_key já existir (capturado no controller)
     """
-    # Remove items[] — eles são persistidos separadamente em 'prices'
     header = {k: v for k, v in doc.items() if k != "items"}
-    to_insert = {**header, "created_at": datetime.now(timezone.utc)}
+    to_insert = {**header, "user_id": user_id, "created_at": datetime.now(timezone.utc)}
     await db[COLLECTION].insert_one(to_insert)
-    # Remove o _id gerado pelo MongoDB antes de retornar (não faz parte do schema público)
     to_insert.pop("_id", None)
     return to_insert

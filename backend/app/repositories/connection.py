@@ -36,6 +36,7 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     - prices.(product_id, purchase_date): último preço por produto
     - prices.(product_id, unit_price, purchase_date): menor preço por produto
     - users.email: unique — impede cadastro duplicado
+    - receipts.(user_id, created_at): histórico paginado por usuário, mais recente primeiro
     """
     await db["receipts"].create_index("access_key", unique=True)
     await db["products"].create_index("normalized_name", unique=True)
@@ -45,3 +46,5 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     # Índice composto para GET /prices/lowest (ordena por preço crescente, depois data)
     await db["prices"].create_index([("product_id", 1), ("unit_price", 1), ("purchase_date", -1)])
     await db["users"].create_index("email", unique=True)
+    # Índice composto para GET /receipts (filtra por usuário, ordena por mais recente)
+    await db["receipts"].create_index([("user_id", 1), ("created_at", -1)])

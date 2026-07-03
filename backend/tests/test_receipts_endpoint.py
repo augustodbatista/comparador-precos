@@ -19,9 +19,12 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
+from app.controllers.auth import get_current_user
 from app.services.html_parser import parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError
 from main import app
+
+TEST_USER = "test@example.com"
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MG_HTML = (FIXTURES / "mg_sefaz.html").read_text(encoding="utf-8")
@@ -38,6 +41,7 @@ def receipt_doc(access_key: str, created_at: datetime) -> dict:
         "url": f"https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p={access_key}|3|1",
         **parsed,
         "created_at": created_at,
+        "user_id": TEST_USER,
     }
 
 
@@ -49,10 +53,12 @@ async def client():
     await mock_db["products"].create_index("normalized_name", unique=True)
     await mock_db["prices"].create_index("product_id")
     app.state.db = mock_db
+    app.dependency_overrides[get_current_user] = lambda: TEST_USER
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
+    app.dependency_overrides.clear()
     mock_client.close()
 
 
@@ -113,7 +119,7 @@ class TestGetReceipts:
         from app.services.qr_parser import parse_qr_nfce
         nfce = parse_qr_nfce(VALID_URL)
         parsed = parse_nfce_html(MG_HTML)
-        await insert_receipt(app.state.db, {"access_key": nfce.access_key, "url": nfce.url, **parsed})
+        await insert_receipt(app.state.db, {"access_key": nfce.access_key, "url": nfce.url, **parsed}, TEST_USER)
 
         mock_fetch = AsyncMock(return_value=MG_HTML)
         with patch("app.controllers.receipts.fetch_nfce_html", new=mock_fetch):
@@ -141,6 +147,38 @@ class TestGetReceipts:
         with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(side_effect=httpx.TimeoutException("timeout"))):
             response = await client.get("/receipts", params={"url": VALID_URL})
         assert response.status_code == 504
+
+    async def test_historico_nao_vaza_entre_usuarios(self, client):
+        meu = receipt_doc("1" * 44, datetime(2026, 6, 1, tzinfo=timezone.utc))
+        de_outro = receipt_doc("2" * 44, datetime(2026, 6, 2, tzinfo=timezone.utc))
+        await app.state.db["receipts"].insert_many([
+            {**meu, "user_id": TEST_USER},
+            {**de_outro, "user_id": "outro@example.com"},
+        ])
+
+        response = await client.get("/receipts")
+
+        assert response.status_code == 200
+        access_keys = [r["access_key"] for r in response.json()]
+        assert access_keys == ["1" * 44]
+
+    async def test_get_por_url_de_cupom_de_outro_usuario_rebusca_na_sefaz(self, client):
+        from app.repositories.receipts import insert_receipt as _insert_direto
+        with patch("app.controllers.receipts.fetch_nfce_html", new=AsyncMock(return_value=MG_HTML)):
+            parsed = await client.get("/receipts", params={"url": VALID_URL})
+        # Salva como se fosse de outro usuário, direto no banco (bypassa o controller)
+        await app.state.db["receipts"].delete_many({})
+        from app.services.html_parser import parse_nfce_html as _parse
+        doc = {"access_key": VALID_KEY, "url": VALID_URL, **_parse(MG_HTML)}
+        doc.pop("items", None)
+        await _insert_direto(app.state.db, doc, user_id="outro@example.com")
+
+        mock_fetch = AsyncMock(return_value=MG_HTML)
+        with patch("app.controllers.receipts.fetch_nfce_html", new=mock_fetch):
+            response = await client.get("/receipts", params={"url": VALID_URL})
+
+        assert response.status_code == 200
+        assert mock_fetch.call_count == 1  # rebuscou — não usou o cache do outro usuário
 
 
 @pytest.mark.asyncio
@@ -216,6 +254,29 @@ class TestPostReceipts:
             "receipt_id": VALID_KEY, "original_description": "LEITE LV CAMPONESA"
         })
         assert saved["product_id"] == "Leite Longa Vida Camponesa"
+
+    async def test_retorna_409_quando_cupom_pertence_a_outro_usuario(self, client):
+        body = await self._get_parsed_body(client)
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
+            await client.post("/receipts", json=body)
+
+        # Troca de usuário — outro dono tentando salvar o MESMO access_key
+        app.dependency_overrides[get_current_user] = lambda: "outro@example.com"
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
+            response = await client.post("/receipts", json=body)
+        app.dependency_overrides[get_current_user] = lambda: TEST_USER  # restaura pro teardown
+
+        assert response.status_code == 409
+        assert "issuer" not in response.json()
+        assert "items" not in response.json()
+
+    async def test_retorna_200_quando_o_mesmo_usuario_reenvia(self, client):
+        body = await self._get_parsed_body(client)
+        with patch("app.controllers.receipts.normalize_items", new=_normalize_passthrough):
+            await client.post("/receipts", json=body)
+            response = await client.post("/receipts", json=body)  # reenvio, mesmo TEST_USER
+        assert response.status_code == 200
+        assert response.json()["access_key"] == VALID_KEY
 
     async def test_retorna_422_sem_body(self, client):
         response = await client.post("/receipts")
