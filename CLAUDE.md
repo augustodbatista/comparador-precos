@@ -57,20 +57,20 @@ comparador-precos/
 │   ├── app/
 │   │   ├── models/
 │   │   │   ├── receipt.py          ← IssuerData, ItemData, TotalsData, InvoiceData, ReceiptData
-│   │   │   └── user.py             ← UserRegister, UserLogin
+│   │   │   └── user.py             ← SignupRequest, LoginRequest
 │   │   ├── views/
 │   │   │   ├── price.py            ← ProductItem, PriceResponse
 │   │   │   ├── health.py           ← OllamaHealthResponse
-│   │   │   └── auth.py             ← TokenResponse, UserResponse
+│   │   │   └── auth.py             ← TokenResponse
 │   │   ├── controllers/
 │   │   │   ├── receipts.py         ← GET e POST /receipts (privado por user_id)
 │   │   │   ├── prices.py           ← GET /prices/latest e /prices/lowest (requer auth)
-│   │   │   └── auth.py             ← POST /auth/register, POST /auth/login
+│   │   │   └── auth.py             ← POST /auth/signup, POST /auth/login, get_current_user()
 │   │   ├── repositories/
 │   │   │   ├── connection.py       ← get_client(), get_db()
 │   │   │   ├── receipts.py         ← find_by_access_key(), insert_receipt(), list_receipts()
 │   │   │   ├── prices.py           ← get_latest_price(), get_lowest_price()
-│   │   │   └── users.py            ← find_by_email(), create_user()
+│   │   │   └── users.py            ← find_by_email(), insert_user()
 │   │   └── services/
 │   │       ├── qr_parser.py        ← parse_qr_nfce()
 │   │       ├── nfce_fetcher.py     ← fetch_nfce_html()
