@@ -47,6 +47,15 @@ class TestSignup:
         response = await client.post("/auth/signup", json={"email": "user@example.com", "password": "1234567"})
         assert response.status_code == 422
 
+    async def test_retorna_422_para_senha_maior_que_72_bytes_mesmo_com_menos_de_72_caracteres(self, client):
+        senha_multibyte = "á" * 40  # 40 caracteres, mas 80 bytes em UTF-8 (> 72)
+        response = await client.post("/auth/signup", json={"email": "user@example.com", "password": senha_multibyte})
+        assert response.status_code == 422
+
+    async def test_retorna_201_para_senha_multibyte_dentro_do_limite(self, client):
+        response = await client.post("/auth/signup", json={"email": "user@example.com", "password": "senhaç123"})
+        assert response.status_code == 201
+
 
 @pytest.mark.asyncio
 class TestLogin:

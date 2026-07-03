@@ -17,8 +17,8 @@ class SignupRequest(BaseModel):
     def valida_tamanho_senha(cls, v: str) -> str:
         if len(v) < MIN_PASSWORD_LENGTH:
             raise ValueError(f"Senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres")
-        if len(v) > MAX_PASSWORD_LENGTH:
-            raise ValueError(f"Senha deve ter no máximo {MAX_PASSWORD_LENGTH} caracteres")
+        if len(v.encode("utf-8")) > MAX_PASSWORD_LENGTH:
+            raise ValueError(f"Senha muito longa (máx. {MAX_PASSWORD_LENGTH} bytes)")
         return v
 
 

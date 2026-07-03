@@ -30,7 +30,8 @@
 ## Schema MongoDB (Task 7)
 
 ```
-receipts  → { accessKey (unique), url, issuer{}, items[], totals{}, invoice{}, createdAt }
+users     → { email (unique), hashedPassword, createdAt }
+receipts  → { accessKey (unique), userId (privado por usuário), url, issuer{}, items[], totals{}, invoice{}, createdAt }
 products  → { productName }
 prices    → { productId, receiptId, internalCode, originalDescription,
               quantity, unit, unitPrice, totalValue, purchaseDate, issuerCNPJ, issuerName }
@@ -93,10 +94,12 @@ comparador-precos/
     └── src/
         ├── App.tsx
         ├── components/
+        │   ├── Auth.tsx             ← telas de login/cadastro
         │   ├── QrReader.tsx        ← scanner + tela de resultado
-        │   └── PriceConsultation.tsx ← consulta de preços por código de produto
+        │   ├── PriceConsultation.tsx ← consulta de preços por código de produto
+        │   └── ReceiptHistory.tsx  ← histórico de cupons do usuário logado
         ├── config/
-        │   └── api.ts              ← API_URL (VITE_API_URL ou fallback Render)
+        │   └── api.ts              ← API_URL + apiFetch (fetch autenticado) + getToken/setToken/clearToken
         └── utils/
             └── parseNfceQr.ts     ← parser de URL NFC-e (lado cliente, valida antes de chamar backend)
 ```
