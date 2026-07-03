@@ -53,8 +53,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
   // Default: sem produtos — evita UnhandledRejection nos testes que não precisam da lista
-  // apiFetch sempre passa um init object com headers, então aceitamos ambos os parâmetros
-  fetchMock.mockImplementation((url: string, init?: RequestInit) => jsonResponse([]))
+  fetchMock.mockImplementation(() => jsonResponse([]))
 })
 
 describe('PriceConsultation', () => {
@@ -78,7 +77,7 @@ describe('PriceConsultation', () => {
   })
 
   it('consulta último e menor preço ao clicar num produto', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((url: string) => {
       if (url.includes('/products')) return jsonResponse(mockProductList)
       if (url.includes('/prices/latest')) return jsonResponse(latestPrice)
       if (url.includes('/prices/lowest')) return jsonResponse(lowestPrice)
@@ -106,7 +105,7 @@ describe('PriceConsultation', () => {
   })
 
   it('exibe estado vazio quando o produto não tem preços cadastrados', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((url: string) => {
       if (url.includes('/products')) return jsonResponse(mockProductList)
       if (url.includes('/prices/')) return jsonResponse({ detail: 'Produto não encontrado' }, 404)
       return jsonResponse([])
