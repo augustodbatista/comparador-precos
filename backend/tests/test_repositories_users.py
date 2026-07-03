@@ -28,6 +28,7 @@ class TestInsertUser:
         assert result["email"] == "user@example.com"
         assert result["hashed_password"] == "hashedvalue"
         assert "created_at" in result
+        assert "_id" not in result
 
     async def test_email_duplicado_levanta_duplicate_key_error(self, db):
         await insert_user(db, "user@example.com", "hashedvalue")
@@ -46,3 +47,4 @@ class TestFindByEmail:
         result = await find_by_email(db, "user@example.com")
         assert result is not None
         assert result["hashed_password"] == "hashedvalue"
+        assert "_id" not in result
