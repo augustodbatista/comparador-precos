@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.repositories.connection import create_indexes, get_client, get_db
+from app.controllers.auth import router as auth_router
 from app.controllers.receipts import router as receipts_router
 from app.controllers.prices import router as prices_router
 
@@ -56,9 +57,10 @@ app.add_middleware(
     # credentials=True exigiria origem literal — quebraria o regex acima
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Registra os roteadores — cada um agrupa seus próprios endpoints
+app.include_router(auth_router)      # POST /auth/signup, POST /auth/login
 app.include_router(receipts_router)  # GET /receipts, POST /receipts
 app.include_router(prices_router)    # GET /products, GET /prices/latest, /lowest, /history
