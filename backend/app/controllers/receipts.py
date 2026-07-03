@@ -1,18 +1,19 @@
 """
 Endpoints de cupons fiscais (NFC-e).
 
-GET  /receipts         — lista histórico salvo no banco
+GET  /receipts         — lista histórico salvo no banco (do usuário autenticado)
 GET  /receipts?url=... — busca um cupom na SEFAZ pelo QR Code
 POST /receipts         — salva um cupom no banco com normalização de nomes
 """
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pymongo.errors import DuplicateKeyError
 
+from app.controllers.auth import get_current_user
 from app.models.receipt import ReceiptData
 from app.repositories.prices import insert_prices, find_product_ids_by_description
 from app.repositories.products import upsert_product, list_all_product_names
-from app.repositories.receipts import find_by_access_key, insert_receipt, list_receipts
+from app.repositories.receipts import find_any_by_access_key, find_by_access_key_for_user, insert_receipt, list_receipts
 from app.services.html_parser import ParseError, parse_nfce_html
 from app.services.nfce_fetcher import NfceFetchError, fetch_nfce_html
 from app.services.normalizer import normalize_items, pre_process, is_regression
@@ -28,34 +29,33 @@ router = APIRouter()
 @router.get("/receipts", response_model=ReceiptData | list[ReceiptData])
 async def get_receipts(
     request: Request,
+    current_user: str = Depends(get_current_user),
     url: str | None = Query(None, description="URL do QR Code da NFC-e"),
     limit: int = Query(50, ge=1, le=100),
     skip: int = Query(0, ge=0),
 ) -> ReceiptData | list[ReceiptData]:
-    """Consulta ou lista cupons.
+    """Consulta ou lista cupons DO USUÁRIO AUTENTICADO.
 
-    Sem ?url → retorna o histórico salvo no banco (paginado).
+    Sem ?url → retorna o histórico salvo no banco (paginado), só os cupons deste usuário.
     Com ?url  → busca a nota na SEFAZ, parseia e retorna (sem salvar).
-               Se a chave já existir no banco, retorna o registro salvo diretamente.
+               Se ESTE usuário já tiver essa chave salva, retorna o registro salvo direto.
+               Se pertencer a outro usuário, comporta-se como cupom novo (rebusca na SEFAZ).
     """
     db = request.app.state.db
 
-    # Sem URL: retorna histórico paginado do banco
     if url is None:
-        docs = await list_receipts(db, limit=limit, skip=skip)
+        docs = await list_receipts(db, current_user, limit=limit, skip=skip)
         return [ReceiptData(**doc) for doc in docs]
 
-    # Valida e extrai a chave de acesso do QR Code
     nfce_data = parse_qr_nfce(url)
     if nfce_data is None:
         raise HTTPException(status_code=422, detail="URL não é uma NFC-e válida")
 
-    # Se o cupom já estiver no banco, retorna sem chamar a SEFAZ
-    existing = await find_by_access_key(db, nfce_data.access_key)
+    # Só reaproveita cache se o cupom é DESTE usuário — de outro dono, comporta-se como novo
+    existing = await find_by_access_key_for_user(db, nfce_data.access_key, current_user)
     if existing:
         return ReceiptData(**existing)
 
-    # Busca o HTML na SEFAZ simulando um browser mobile
     try:
         html = await fetch_nfce_html(nfce_data.url)
     except NfceFetchError as e:
@@ -63,42 +63,42 @@ async def get_receipts(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Timeout ao acessar a SEFAZ")
 
-    # Parseia o HTML e extrai os dados estruturados
     try:
         parsed = parse_nfce_html(html)
     except ParseError as e:
         raise HTTPException(status_code=422, detail=f"Não foi possível extrair dados da nota: {e}")
 
-    # Retorna os dados sem salvar — o frontend decide se vai chamar POST /receipts
     return ReceiptData(access_key=nfce_data.access_key, url=nfce_data.url, **parsed)
 
 
 @router.post("/receipts", response_model=ReceiptData, status_code=201)
-async def save_receipt(body: ReceiptData, request: Request, response: Response) -> ReceiptData:
-    """Persiste um cupom no banco com normalização dos nomes via Ollama.
+async def save_receipt(
+    body: ReceiptData,
+    request: Request,
+    response: Response,
+    current_user: str = Depends(get_current_user),
+) -> ReceiptData:
+    """Persiste um cupom no banco (associado ao usuário autenticado) com normalização de nomes.
 
     Fluxo:
     1. Normaliza os nomes dos itens via Ollama (fallback silencioso se Ollama estiver fora)
-    2. Tenta inserir o cabeçalho em 'receipts'
-       - DuplicateKeyError → cupom já existe → retorna 200 com o registro existente
-    3. Registra cada item como preço em 'prices'
-    4. Cadastra produtos novos em 'products'
+    2. Tenta inserir o cabeçalho em 'receipts', associado ao current_user
+       - DuplicateKeyError, mesmo dono → cupom já existe → retorna 200 (idempotente)
+       - DuplicateKeyError, outro dono → 409, sem devolver os dados do dono original
+    3. Registra cada item como preço em 'prices' (coleção compartilhada entre usuários)
+    4. Cadastra produtos novos em 'products' (catálogo compartilhado)
 
     Status codes:
     - 201: cupom salvo com sucesso
-    - 200: cupom já existia no banco (idempotente — nenhum dado duplicado)
+    - 200: cupom já existia no banco PARA ESTE USUÁRIO (idempotente — nenhum dado duplicado)
+    - 409: cupom já existe, mas pertence a outra conta
     """
     db = request.app.state.db
 
-    # Extrai as descrições brutas e normaliza via Ollama em um único batch
-    # Fallback: se Ollama estiver fora, normalized_name = description original
     descriptions = [item.description for item in body.items]
     existing_names = await list_all_product_names(db)
     normalized = await normalize_items(descriptions, existing_names)
 
-    # Se a descrição já tem um product_id bom de uma compra anterior, não deixa
-    # uma normalização pior desta chamada (LLM fora, ou canonicalize numa âncora
-    # ruim) sobrescrevê-lo — mesma guarda usada em scripts/dedup_and_renormalize.py.
     current_product_ids = await find_product_ids_by_description(db, descriptions)
     final_names = []
     for desc, norm in zip(descriptions, normalized):
@@ -108,29 +108,26 @@ async def save_receipt(body: ReceiptData, request: Request, response: Response) 
         else:
             final_names.append(norm)
 
-    # Substitui o normalized_name de cada item pelo resultado do Ollama
     items = [
         item.model_copy(update={"normalized_name": name})
         for item, name in zip(body.items, final_names)
     ]
     body = body.model_copy(update={"items": items})
 
-    # Tenta inserir o cabeçalho. DuplicateKeyError = cupom já existe no banco.
-    # Fluxo novo (try/insert) em vez de find/check para economizar 1 round-trip no caminho feliz.
     try:
-        inserted_header = await insert_receipt(db, body.model_dump())
+        inserted_header = await insert_receipt(db, body.model_dump(), user_id=current_user)
     except DuplicateKeyError:
-        # Cupom duplicado: retorna 200 com os dados já salvos
-        response.status_code = 200
-        existing = await find_by_access_key(db, body.access_key)
-        return ReceiptData(**existing)
+        existing = await find_any_by_access_key(db, body.access_key)
+        if existing and existing.get("user_id") == current_user:
+            # Reenvio idempotente do próprio usuário (ex.: duplo clique) — comportamento preservado
+            response.status_code = 200
+            return ReceiptData(**existing)
+        # Chave já pertence a OUTRO usuário — nunca retorna os dados dele
+        raise HTTPException(status_code=409, detail="Este cupom já foi salvo por outra conta.")
 
-    # Cadastra produtos novos no catálogo (idempotente via upsert — duplicatas são ignoradas)
     for item in items:
         await upsert_product(db, item.normalized_name or item.description)
 
-    # Insere um documento de preço para cada item do cupom
     await insert_prices(db, body.model_dump(), [item.model_dump() for item in items])
 
-    # Retorna o cupom salvo com o created_at preenchido pelo banco
     return body.model_copy(update={"created_at": inserted_header["created_at"]})

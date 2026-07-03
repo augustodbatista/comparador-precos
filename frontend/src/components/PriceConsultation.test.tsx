@@ -53,7 +53,8 @@ beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
   // Default: sem produtos — evita UnhandledRejection nos testes que não precisam da lista
-  fetchMock.mockReturnValue(jsonResponse([]))
+  // apiFetch sempre passa um init object com headers, então aceitamos ambos os parâmetros
+  fetchMock.mockImplementation((url: string, init?: RequestInit) => jsonResponse([]))
 })
 
 describe('PriceConsultation', () => {
@@ -65,7 +66,7 @@ describe('PriceConsultation', () => {
   })
 
   it('carrega e exibe lista de produtos ao montar', async () => {
-    fetchMock.mockReturnValueOnce(jsonResponse(mockProductList))
+    fetchMock.mockImplementationOnce(() => jsonResponse(mockProductList))
 
     render(<PriceConsultation />)
     await userEvent.type(screen.getByLabelText(/buscar produto/i), 'a')
@@ -77,10 +78,13 @@ describe('PriceConsultation', () => {
   })
 
   it('consulta último e menor preço ao clicar num produto', async () => {
-    fetchMock
-      .mockReturnValueOnce(jsonResponse(mockProductList)) // GET /products
-      .mockReturnValueOnce(jsonResponse(latestPrice))     // GET /prices/latest
-      .mockReturnValueOnce(jsonResponse(lowestPrice))     // GET /prices/lowest
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/products')) return jsonResponse(mockProductList)
+      if (url.includes('/prices/latest')) return jsonResponse(latestPrice)
+      if (url.includes('/prices/lowest')) return jsonResponse(lowestPrice)
+      if (url.includes('/prices/history')) return jsonResponse([latestPrice, lowestPrice])
+      return jsonResponse([])
+    })
 
     render(<PriceConsultation />)
     await userEvent.type(screen.getByLabelText(/buscar produto/i), 'Leite')
@@ -93,8 +97,8 @@ describe('PriceConsultation', () => {
       expect(screen.getByTestId('lowest-price-card')).toBeInTheDocument()
     })
 
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/prices/latest?product_id='))
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/prices/lowest?product_id='))
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/prices/latest?product_id='), expect.any(Object))
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/prices/lowest?product_id='), expect.any(Object))
     expect(screen.getByTestId('latest-price-card')).toHaveTextContent('Supermercado D')
     expect(screen.getByTestId('latest-price-card')).toHaveTextContent('R$ 5,50')
     expect(screen.getByTestId('lowest-price-card')).toHaveTextContent('Supermercado B')
@@ -102,10 +106,11 @@ describe('PriceConsultation', () => {
   })
 
   it('exibe estado vazio quando o produto não tem preços cadastrados', async () => {
-    fetchMock
-      .mockReturnValueOnce(jsonResponse(mockProductList))
-      .mockReturnValueOnce(jsonResponse({ detail: 'Produto não encontrado' }, 404))
-      .mockReturnValueOnce(jsonResponse({ detail: 'Produto não encontrado' }, 404))
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/products')) return jsonResponse(mockProductList)
+      if (url.includes('/prices/')) return jsonResponse({ detail: 'Produto não encontrado' }, 404)
+      return jsonResponse([])
+    })
 
     render(<PriceConsultation />)
     await userEvent.type(screen.getByLabelText(/buscar produto/i), 'Leite')

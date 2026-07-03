@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
 from main import app
+from app.controllers.auth import get_current_user
 
 # Fixtures: cada receipt tem header + itens separados.
 # Os itens são inseridos diretamente em 'prices' para simular o schema de 3 collections.
@@ -128,10 +129,12 @@ async def client():
     await mock_db["products"].insert_many([{**p, "created_at": now} for p in PRODUCT_DOCS])
 
     app.state.db = mock_db
+    app.dependency_overrides[get_current_user] = lambda: "test@example.com"
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
+    app.dependency_overrides.clear()
     mock_client.close()
 
 
@@ -302,3 +305,16 @@ class TestOllamaHealth:
         body = response.json()
         assert body["status"] == "ok"
         assert body["reason"] == "ok"
+
+
+@pytest.mark.asyncio
+class TestPricesRequerAuth:
+    async def test_products_retorna_401_sem_token(self):
+        # cliente separado, SEM dependency_overrides, pra testar o caminho real sem auth
+        mock_client = AsyncMongoMockClient()
+        app.state.db = mock_client["test_db"]
+        app.dependency_overrides.clear()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/products")
+        assert response.status_code == 401
+        mock_client.close()

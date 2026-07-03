@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { API_URL } from '../config/api'
+import { API_URL, apiFetch } from '../config/api'
 
 interface ProductItem {
   normalized_name: string
@@ -46,20 +46,20 @@ function formatDateShort(value: string) {
 function productLabel(p: ProductItem) { return p.normalized_name }
 
 async function fetchPrice(kind: PriceKind, productId: string): Promise<PriceData | null> {
-  const r = await fetch(`${API_URL}/prices/${kind}?product_id=${encodeURIComponent(productId)}`)
+  const r = await apiFetch(`${API_URL}/prices/${kind}?product_id=${encodeURIComponent(productId)}`)
   if (r.status === 404) return null
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Erro (${r.status})`) }
   return r.json()
 }
 
 async function fetchHistory(productId: string): Promise<PriceData[]> {
-  const r = await fetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
+  const r = await apiFetch(`${API_URL}/prices/history?product_id=${encodeURIComponent(productId)}&limit=50`)
   if (!r.ok) return []
   return r.json()
 }
 
 async function fetchProducts(): Promise<ProductItem[]> {
-  const r = await fetch(`${API_URL}/products`)
+  const r = await apiFetch(`${API_URL}/products`)
   if (!r.ok) return []
   return r.json()
 }

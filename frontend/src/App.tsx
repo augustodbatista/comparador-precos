@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { QrReader } from './components/QrReader'
 import { PriceConsultation } from './components/PriceConsultation'
 import { ReceiptHistory } from './components/ReceiptHistory'
-import { API_URL } from './config/api'
+import { Auth } from './components/Auth'
+import { API_URL, clearToken, getToken, setUnauthorizedHandler } from './config/api'
 
 type AppView = 'scanner' | 'prices' | 'history'
 
@@ -24,15 +25,43 @@ function useDarkMode() {
   return [dark, () => setDark(d => !d)] as const
 }
 
+function useAuth() {
+  const [token, setTokenState] = useState<string | null>(() => getToken())
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setTokenState(null))
+  }, [])
+
+  function login(newToken: string) {
+    setTokenState(newToken)
+  }
+
+  function logout() {
+    clearToken()
+    setTokenState(null)
+  }
+
+  return { token, login, logout }
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('scanner')
   const [dark, toggleTheme] = useDarkMode()
+  const { token, login, logout } = useAuth()
 
   // Acorda o backend no Render (free tier dorme após ~15 min sem uso).
-  // O ping é fire-and-forget: erros são silenciados.
+  // O ping é fire-and-forget: erros são silenciados. Endpoint público — não exige login.
   useEffect(() => {
     fetch(`${API_URL}/health/ollama`).catch(() => {})
   }, [])
+
+  if (!token) {
+    return (
+      <main className="app-container">
+        <Auth onAuthenticated={login} />
+      </main>
+    )
+  }
 
   return (
     <main className="app-container">
@@ -62,6 +91,10 @@ export default function App() {
             Histórico
           </button>
         </nav>
+
+        <button className="btn btn-outline" type="button" onClick={logout} style={{ marginLeft: 'auto' }}>
+          Sair
+        </button>
       </header>
 
       {activeView === 'scanner' && <QrReader />}

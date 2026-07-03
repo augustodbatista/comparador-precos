@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { API_URL } from '../config/api'
+import { API_URL, apiFetch } from '../config/api'
 import type { ReceiptData } from './QrReader'
 
 async function fetchReceipts(): Promise<ReceiptData[]> {
-  const r = await fetch(`${API_URL}/receipts?limit=100`)
+  const r = await apiFetch(`${API_URL}/receipts?limit=100`)
   if (!r.ok) return []
   return r.json()
 }
