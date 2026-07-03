@@ -25,6 +25,7 @@
 - **Headers mobile no httpx** — alguns estados (PE, CE) verificam User-Agent antes de servir a página
 - **Normalização via Ollama (Task 6)** — qwen2.5:7b rodando localmente em `http://localhost:11434`; todos os itens de um cupom são enviados em um único prompt batch; fallback silencioso se Ollama estiver fora (normalized_name fica igual à description original); `product_id` nas queries de preço é o `normalized_name`, não o código interno da loja — isso viabiliza comparação cross-store
 - **OLLAMA_URL** — variável de ambiente configurável; padrão `http://localhost:11434`
+- **Login multi-usuário (JWT)** — `receipts` privado por usuário (`user_id` = email, só no documento Mongo, nunca no schema `ReceiptData`); `products`/`prices` continuam globais/compartilhados. `access_key` continua globalmente único — ao detectar `DuplicateKeyError` de outro dono em `POST /receipts`, responde 409 sem devolver os dados do dono original (ver `app/controllers/receipts.py`). Token via header `Authorization: Bearer`, não cookie — evita mexer no `allow_credentials=False` do CORS.
 
 ## Schema MongoDB (Task 7)
 
@@ -55,21 +56,26 @@ comparador-precos/
 │   ├── .env.example
 │   ├── app/
 │   │   ├── models/
-│   │   │   └── receipt.py          ← IssuerData, ItemData, TotalsData, InvoiceData, ReceiptData
+│   │   │   ├── receipt.py          ← IssuerData, ItemData, TotalsData, InvoiceData, ReceiptData
+│   │   │   └── user.py             ← UserRegister, UserLogin
 │   │   ├── views/
 │   │   │   ├── price.py            ← ProductItem, PriceResponse
-│   │   │   └── health.py           ← OllamaHealthResponse
+│   │   │   ├── health.py           ← OllamaHealthResponse
+│   │   │   └── auth.py             ← TokenResponse, UserResponse
 │   │   ├── controllers/
-│   │   │   ├── receipts.py         ← GET e POST /receipts
-│   │   │   └── prices.py           ← GET /prices/latest e /prices/lowest
+│   │   │   ├── receipts.py         ← GET e POST /receipts (privado por user_id)
+│   │   │   ├── prices.py           ← GET /prices/latest e /prices/lowest (requer auth)
+│   │   │   └── auth.py             ← POST /auth/register, POST /auth/login
 │   │   ├── repositories/
 │   │   │   ├── connection.py       ← get_client(), get_db()
 │   │   │   ├── receipts.py         ← find_by_access_key(), insert_receipt(), list_receipts()
-│   │   │   └── prices.py           ← get_latest_price(), get_lowest_price()
+│   │   │   ├── prices.py           ← get_latest_price(), get_lowest_price()
+│   │   │   └── users.py            ← find_by_email(), create_user()
 │   │   └── services/
 │   │       ├── qr_parser.py        ← parse_qr_nfce()
 │   │       ├── nfce_fetcher.py     ← fetch_nfce_html()
-│   │       └── html_parser.py      ← parse_nfce_html() — MG suportado; SP a implementar
+│   │       ├── html_parser.py      ← parse_nfce_html() — MG suportado; SP a implementar
+│   │       └── auth.py             ← hash_password(), verify_password(), create_access_token()
 │   └── tests/
 │       ├── fixtures/mg_sefaz.html  ← HTML real da SEFAZ MG (Casa Rena, 07/06/2026)
 │       ├── test_qr_parser.py
@@ -77,8 +83,11 @@ comparador-precos/
 │       ├── test_html_parser.py
 │       ├── test_repositories_receipts.py
 │       ├── test_repositories_products.py
+│       ├── test_repositories_users.py
 │       ├── test_prices_endpoint.py
-│       └── test_receipts_endpoint.py
+│       ├── test_receipts_endpoint.py
+│       ├── test_auth_service.py
+│       └── test_auth_endpoint.py
 └── frontend/
     ├── vercel.json
     └── src/

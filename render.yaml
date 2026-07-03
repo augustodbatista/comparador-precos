@@ -10,3 +10,5 @@ services:
         sync: false
       - key: DB_NAME
         sync: false
+      - key: JWT_SECRET_KEY
+        sync: false

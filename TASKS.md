@@ -223,6 +223,31 @@ Tela frontend para consultar o último preço e o menor preço registrado de um 
 
 ---
 
+## Task 10 — Login multi-usuário (JWT + bcrypt) ✅
+
+Sistema de autenticação completo: cadastro/login com senha hasheada (bcrypt) e sessão via
+JWT (7 dias, header Authorization). `receipts` privado por usuário; `products`/`prices`
+continuam compartilhados entre contas. Corrigido vazamento de dados que existiria no fluxo
+de duplicata de `POST /receipts` uma vez que cupons ficam privados.
+
+**Arquivos criados:**
+- `backend/app/models/user.py`, `backend/app/views/auth.py`, `backend/app/services/auth.py`
+- `backend/app/repositories/users.py`, `backend/app/controllers/auth.py`
+- `frontend/src/components/Auth.tsx`
+- `backend/.env.example`
+
+**Arquivos modificados:**
+- `backend/app/repositories/connection.py` — índices de `users.email` e `receipts.(user_id, created_at)`
+- `backend/app/repositories/receipts.py`, `backend/app/controllers/receipts.py` — scoping por usuário
+- `backend/app/controllers/prices.py` — exige autenticação
+- `backend/main.py` — registra `auth_router`, CORS libera header `Authorization`
+- `frontend/src/config/api.ts` — `apiFetch` com injeção de JWT e tratamento de 401
+- `frontend/src/App.tsx` — gate de login/logout
+- `frontend/src/components/{QrReader,PriceConsultation,ReceiptHistory}.tsx` — usam `apiFetch`
+- `render.yaml` — nova var `JWT_SECRET_KEY`
+
+---
+
 ## Totais de testes
 
 | Módulo | Arquivo | Testes |
