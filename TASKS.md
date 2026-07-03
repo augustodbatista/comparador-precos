@@ -50,7 +50,7 @@ Endpoint que recebe a URL da NFC-e, valida, busca o HTML na SEFAZ com headers de
 CORS configurado para Vercel. HTML cru retornado por enquanto (parser vem na Task 5).
 
 **Arquivos criados/modificados:**
-- `backend/app/routes/receipts.py`
+- `backend/app/controllers/receipts.py`
 - `backend/app/services/nfce_fetcher.py`
 - `backend/tests/test_nfce_fetcher.py` — 4 testes
 - `backend/tests/test_receipts_endpoint.py` — 6 testes
@@ -99,9 +99,9 @@ produtos iguais em lojas diferentes têm codes internos distintos mas o mesmo no
 - `backend/tests/test_normalizer.py` — 5 testes (mock httpx)
 
 **Arquivos modificados:**
-- `backend/app/routes/receipts.py` — ItemData.normalized_name + POST chama normalizer
-- `backend/app/routes/prices.py` — PriceResponse completo (endereço, invoice, url)
-- `backend/app/db/repositories/prices.py` — query por normalized_name, _build_price_result
+- `backend/app/controllers/receipts.py` — ItemData.normalized_name + POST chama normalizer
+- `backend/app/controllers/prices.py` — PriceResponse completo (endereço, invoice, url)
+- `backend/app/repositories/prices.py` — query por normalized_name, _build_price_result
 - `backend/.env` — OLLAMA_URL adicionado
 - `backend/tests/test_prices_endpoint.py` — fixtures com normalized_name, queries por nome
 - `backend/tests/test_receipts_endpoint.py` — mock normalize_items nos testes POST
@@ -113,16 +113,16 @@ produtos iguais em lojas diferentes têm codes internos distintos mas o mesmo no
 Motor + Atlas. `POST /receipts` persiste o cupom na primeira leitura (201) e retorna dados existentes na segunda (200), sem re-fetch na SEFAZ.
 
 **Arquivos criados:**
-- `backend/app/db/connection.py` — Motor client + helper get_db
-- `backend/app/db/repositories/receipts.py` — find_by_access_key, insert_receipt
-- `backend/tests/test_db_receipts.py` — 5 testes com mongomock-motor
+- `backend/app/repositories/connection.py` — Motor client + helper get_db
+- `backend/app/repositories/receipts.py` — find_by_access_key, insert_receipt
+- `backend/tests/test_repositories_receipts.py` — 5 testes com mongomock-motor
 
 **Arquivos modificados:**
 - `backend/main.py` — lifespan abre/fecha Motor client
-- `backend/app/routes/receipts.py` — fluxo com lookup de DB antes do fetch
+- `backend/app/controllers/receipts.py` — fluxo com lookup de DB antes do fetch
 - `backend/tests/test_receipts_endpoint.py` — 10 testes (4 novos + 6 existentes)
-- `backend/app/db/repositories/products.py`
-- `backend/app/db/repositories/prices.py`
+- `backend/app/repositories/products.py`
+- `backend/app/repositories/prices.py`
 
 ---
 
@@ -136,9 +136,9 @@ Compatibilidade mantida:
 - `POST /receipts` continua salvando o cupom de forma idempotente
 
 **Arquivos modificados:**
-- `backend/app/db/repositories/receipts.py` — `list_receipts`
-- `backend/app/routes/receipts.py` — listagem em `GET /receipts`
-- `backend/tests/test_db_receipts.py` — testes de listagem/paginação
+- `backend/app/repositories/receipts.py` — `list_receipts`
+- `backend/app/controllers/receipts.py` — listagem em `GET /receipts`
+- `backend/tests/test_repositories_receipts.py` — testes de listagem/paginação
 - `backend/tests/test_receipts_endpoint.py` — testes de integração do histórico
 
 ---
@@ -152,9 +152,44 @@ Expor a comparação de preços de produtos via API.
 - `GET /prices/lowest?product_id=` — menor preço já visto
 
 **Arquivos criados:**
-- `backend/app/routes/prices.py`
-- `backend/app/db/repositories/prices.py`
+- `backend/app/controllers/prices.py`
+- `backend/app/repositories/prices.py`
 - `backend/tests/test_prices_endpoint.py`
+
+---
+
+## Task 9 — Reorganização em camadas MVC ✅
+
+Backend reorganizado em 5 camadas explícitas, atendendo a requisito de arquitetura MVC passado
+pelo professor. Refactor estrutural puro — sem mudança de comportamento em nenhum endpoint.
+Executado via subagent-driven development: uma task por camada, com revisão de spec/qualidade
+a cada uma, mais revisão final da branch inteira antes do merge.
+
+**Camadas:**
+- `app/models/` — schemas Pydantic de entrada/domínio (`ReceiptData` e tipos aninhados)
+- `app/views/` — schemas Pydantic só de saída (`ProductItem`, `PriceResponse`, `OllamaHealthResponse`)
+- `app/controllers/` — routers do FastAPI (era `app/routes/`)
+- `app/services/` — inalterado
+- `app/repositories/` — sobe de `app/db/repositories/` + `app/db/connection.py`
+
+**Arquivos criados:**
+- `backend/app/models/receipt.py`
+- `backend/app/views/price.py`
+- `backend/app/views/health.py`
+
+**Arquivos movidos/renomeados:**
+- `backend/app/routes/` → `backend/app/controllers/`
+- `backend/app/db/connection.py` → `backend/app/repositories/connection.py`
+- `backend/app/db/repositories/*.py` → `backend/app/repositories/*.py`
+- `backend/tests/test_db_receipts.py` → `backend/tests/test_repositories_receipts.py`
+- `backend/tests/test_db_products.py` → `backend/tests/test_repositories_products.py`
+
+**Docs:**
+- `CLAUDE.md` — estrutura de pastas atualizada
+- `docs/superpowers/specs/2026-07-02-backend-mvc-architecture-design.md`
+- `docs/superpowers/plans/2026-07-02-backend-mvc-architecture.md`
+
+**PR:** #7 (merged)
 
 ---
 
@@ -195,7 +230,7 @@ Tela frontend para consultar o último preço e o menor preço registrado de um 
 | Backend | test_qr_parser.py | 14 |
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
-| Backend | test_db_receipts.py | 7 |
+| Backend | test_repositories_receipts.py | 7 |
 | Backend | test_normalizer.py | 5 |
 | Backend | test_receipts_endpoint.py | 13 |
 | Backend | test_prices_endpoint.py | 7 |
