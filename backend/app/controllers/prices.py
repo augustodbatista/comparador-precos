@@ -10,7 +10,8 @@ GET /health/ollama         — verifica se o Ollama está acessível
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from app.controllers.auth import get_current_user
 
 from app.views.price import ProductItem, PriceResponse
 from app.views.health import OllamaHealthResponse
@@ -25,7 +26,9 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 @router.get("/products", response_model=list[ProductItem])
-async def list_products_endpoint(request: Request) -> list[ProductItem]:
+async def list_products_endpoint(
+    request: Request, current_user: str = Depends(get_current_user)
+) -> list[ProductItem]:
     """Lista todos os produtos únicos do catálogo em ordem alfabética.
 
     Usado pelo frontend para popular a lista de busca na tela de Preços.
@@ -39,6 +42,7 @@ async def list_products_endpoint(request: Request) -> list[ProductItem]:
 async def read_latest_price(
     request: Request,
     product_id: str = Query(..., description="normalized_name do produto"),
+    current_user: str = Depends(get_current_user),
 ) -> PriceResponse:
     """Retorna o último preço registrado para o produto (purchase_date mais recente).
 
@@ -55,6 +59,7 @@ async def read_latest_price(
 async def read_lowest_price(
     request: Request,
     product_id: str = Query(..., description="normalized_name do produto"),
+    current_user: str = Depends(get_current_user),
 ) -> PriceResponse:
     """Retorna o menor preço unitário já registrado para o produto entre todas as lojas.
 
@@ -72,6 +77,7 @@ async def read_price_history(
     request: Request,
     product_id: str = Query(..., description="normalized_name do produto"),
     limit: int = Query(50, ge=1, le=200),
+    current_user: str = Depends(get_current_user),
 ) -> list[PriceResponse]:
     """Retorna o histórico completo de preços do produto, do mais recente ao mais antigo.
 
