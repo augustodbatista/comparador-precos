@@ -25,7 +25,7 @@ async def signup(body: SignupRequest, request: Request) -> TokenResponse:
     email = body.email.lower()
     hashed = await hash_password(body.password)
     try:
-        await insert_user(db, email, hashed)
+        await insert_user(db, email, hashed, body.phone)
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="E-mail já cadastrado")
     token = create_access_token(email)

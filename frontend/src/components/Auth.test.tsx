@@ -70,12 +70,57 @@ describe('Auth', () => {
 
     await userEvent.click(screen.getByText(/criar conta/i))
     await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
+    await userEvent.type(screen.getByLabelText(/telefone/i), '11912345678')
     await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
     await userEvent.click(screen.getByRole('button', { name: /cadastrar/i }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/e-mail já cadastrado/i)
     })
+  })
+
+  it('cadastro envia o telefone no corpo da requisição', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ access_token: 'tok', token_type: 'bearer', email: 'user@example.com' }),
+    })
+    render(<Auth onAuthenticated={vi.fn()} />)
+
+    await userEvent.click(screen.getByText(/criar conta/i))
+    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com')
+    await userEvent.type(screen.getByLabelText(/telefone/i), '11912345678')
+    await userEvent.type(screen.getByLabelText(/senha/i), 'senha1234')
+    await userEvent.click(screen.getByRole('button', { name: /cadastrar/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const signupCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/signup'))!
+    const sentBody = JSON.parse(signupCall[1].body)
+    expect(sentBody.phone).toBe('11912345678')
+    expect(sentBody.email).toBe('user@example.com')
+  })
+
+  it('medidor de força mostra Fraca / Média / Forte conforme a senha no cadastro', async () => {
+    render(<Auth onAuthenticated={vi.fn()} />)
+    await userEvent.click(screen.getByText(/criar conta/i))
+    const pw = screen.getByLabelText(/senha/i)
+
+    await userEvent.type(pw, 'abc')
+    expect(screen.getByTestId('password-strength')).toHaveTextContent(/fraca/i)
+
+    await userEvent.clear(pw)
+    await userEvent.type(pw, 'Abcdef1!')
+    expect(screen.getByTestId('password-strength')).toHaveTextContent(/média/i)
+
+    await userEvent.clear(pw)
+    await userEvent.type(pw, 'Abcdefgh1234!')
+    expect(screen.getByTestId('password-strength')).toHaveTextContent(/forte/i)
+  })
+
+  it('medidor de força não aparece no modo login', async () => {
+    render(<Auth onAuthenticated={vi.fn()} />)
+    await userEvent.type(screen.getByLabelText(/senha/i), 'Abcdef1!')
+    expect(screen.queryByTestId('password-strength')).not.toBeInTheDocument()
   })
 
   it('desabilita o botão enquanto a requisição está pendente', async () => {
