@@ -30,7 +30,7 @@
 ## Schema MongoDB (Task 7)
 
 ```
-users     → { email (unique), hashedPassword, createdAt }
+users     → { email (unique), hashedPassword, phone, createdAt }
 receipts  → { accessKey (unique), userId (privado por usuário), url, issuer{}, items[], totals{}, invoice{}, createdAt }
 products  → { productName }
 prices    → { productId, receiptId, internalCode, originalDescription,

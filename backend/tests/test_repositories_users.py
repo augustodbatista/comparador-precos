@@ -19,21 +19,22 @@ async def db():
 @pytest.mark.asyncio
 class TestInsertUser:
     async def test_persiste_no_banco(self, db):
-        await insert_user(db, "user@example.com", "hashedvalue")
+        await insert_user(db, "user@example.com", "hashedvalue", "11912345678")
         count = await db["users"].count_documents({"email": "user@example.com"})
         assert count == 1
 
     async def test_retorna_doc_criado(self, db):
-        result = await insert_user(db, "user@example.com", "hashedvalue")
+        result = await insert_user(db, "user@example.com", "hashedvalue", "11912345678")
         assert result["email"] == "user@example.com"
         assert result["hashed_password"] == "hashedvalue"
+        assert result["phone"] == "11912345678"
         assert "created_at" in result
         assert "_id" not in result
 
     async def test_email_duplicado_levanta_duplicate_key_error(self, db):
-        await insert_user(db, "user@example.com", "hashedvalue")
+        await insert_user(db, "user@example.com", "hashedvalue", "11912345678")
         with pytest.raises(DuplicateKeyError):
-            await insert_user(db, "user@example.com", "outrohash")
+            await insert_user(db, "user@example.com", "outrohash", "11987654321")
 
 
 @pytest.mark.asyncio
@@ -43,8 +44,9 @@ class TestFindByEmail:
         assert result is None
 
     async def test_retorna_doc_quando_existe(self, db):
-        await insert_user(db, "user@example.com", "hashedvalue")
+        await insert_user(db, "user@example.com", "hashedvalue", "11912345678")
         result = await find_by_email(db, "user@example.com")
         assert result is not None
         assert result["hashed_password"] == "hashedvalue"
+        assert result["phone"] == "11912345678"
         assert "_id" not in result
