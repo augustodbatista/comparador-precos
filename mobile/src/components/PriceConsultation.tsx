@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   IonAccordion,
   IonAccordionGroup,
@@ -15,12 +15,16 @@ import {
   IonLabel,
   IonList,
   IonPage,
+  IonSkeletonText,
   IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/react'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'
+import { tapFeedback } from '../services/interactionFeedback'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { BrandTitle } from './BrandTitle'
 
 interface ProductItem {
   description?: string
@@ -48,6 +52,7 @@ export interface PriceData {
 
 type Status = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 type PriceKind = 'latest' | 'lowest'
+let productsCache: ProductItem[] | null = null
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -86,9 +91,11 @@ async function fetchHistory(productId: string): Promise<PriceData[]> {
 }
 
 async function fetchProducts(): Promise<ProductItem[]> {
+  if (productsCache) return productsCache
   const response = await apiFetch(`${API_URL}/products`)
   if (!response.ok) return []
-  return response.json() as Promise<ProductItem[]>
+  productsCache = await response.json() as ProductItem[]
+  return productsCache
 }
 
 function computeByStore(history: PriceData[]) {
@@ -144,6 +151,7 @@ function PriceResultCard({ price, testId }: { price: PriceData; testId: string }
 
 export function PriceConsultation() {
   const [products, setProducts] = useState<ProductItem[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
   const [filter, setFilter] = useState('')
   const [selected, setSelected] = useState<ProductItem | null>(null)
   const [status, setStatus] = useState<Status>('idle')
@@ -151,16 +159,22 @@ export function PriceConsultation() {
   const [lowestPrice, setLowestPrice] = useState<PriceData | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [history, setHistory] = useState<PriceData[]>([])
+  const debouncedFilter = useDebouncedValue(filter)
 
   useEffect(() => {
-    fetchProducts().then(setProducts).catch(() => {})
+    fetchProducts()
+      .then(setProducts)
+      .catch(() => setProducts([]))
+      .finally(() => setProductsLoading(false))
   }, [])
 
-  const filtered = filter.trim().length >= 1
-    ? products.filter(product => productLabel(product).toLowerCase().includes(filter.toLowerCase()))
-    : products
+  const filtered = useMemo(() => {
+    const query = debouncedFilter.trim().toLowerCase()
+    if (query.length < 1) return products
+    return products.filter(product => productLabel(product).toLowerCase().includes(query))
+  }, [debouncedFilter, products])
   const showList = !selected && filtered.length > 0
-  const byStore = computeByStore(history)
+  const byStore = useMemo(() => computeByStore(history), [history])
 
   async function search(key: string) {
     setStatus('loading')
@@ -182,6 +196,7 @@ export function PriceConsultation() {
   }
 
   async function handleSelect(product: ProductItem) {
+    void tapFeedback()
     setSelected(product)
     setFilter(productLabel(product))
     await search(productLabel(product))
@@ -189,10 +204,12 @@ export function PriceConsultation() {
 
   async function handleSearch() {
     if (!selected) return
+    void tapFeedback()
     await search(productLabel(selected))
   }
 
   function handleClear() {
+    void tapFeedback()
     setFilter('')
     setSelected(null)
     setStatus('idle')
@@ -206,12 +223,7 @@ export function PriceConsultation() {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>
-            <span className="toolbar-brand">
-              <img className="toolbar-logo-small" src="/assets/comparador-precos-logo.png" alt="" />
-              Preços
-            </span>
-          </IonTitle>
+          <IonTitle><BrandTitle label="Precos" /></IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen className="ion-padding">
@@ -226,7 +238,7 @@ export function PriceConsultation() {
               label="Buscar produto"
               labelPlacement="stacked"
               value={filter}
-              placeholder={products.length === 0 ? 'Carregando produtos...' : 'Digite para filtrar...'}
+              placeholder={productsLoading ? 'Carregando produtos...' : 'Digite para filtrar...'}
               disabled={status === 'loading'}
               onIonInput={(event) => {
                 const value = String(event.detail.value ?? '')
@@ -247,11 +259,19 @@ export function PriceConsultation() {
                 onTouchMove={(event) => event.stopPropagation()}
                 onWheel={(event) => event.stopPropagation()}
               >
-                {filtered.map((product, index) => (
-                  <IonItem button key={`${product.normalized_name}-${index}`} onClick={() => handleSelect(product)}>
+                {filtered.map((product) => (
+                  <IonItem button key={productLabel(product)} onClick={() => handleSelect(product)}>
                     <IonLabel>{productLabel(product)}</IonLabel>
                   </IonItem>
                 ))}
+              </IonList>
+            )}
+
+            {productsLoading && (
+              <IonList inset aria-label="Produtos carregando">
+                <IonItem><IonSkeletonText animated /></IonItem>
+                <IonItem><IonSkeletonText animated /></IonItem>
+                <IonItem><IonSkeletonText animated /></IonItem>
               </IonList>
             )}
 
@@ -264,8 +284,11 @@ export function PriceConsultation() {
               </IonButton>
             </div>
 
-            {products.length === 0 && (
-              <p className="muted">Nenhum cupom salvo ainda. Escaneie e salve uma nota primeiro.</p>
+            {!productsLoading && products.length === 0 && (
+              <div className="empty-state">
+                <strong>Nenhum produto salvo</strong>
+                <span>Escaneie e salve uma nota primeiro.</span>
+              </div>
             )}
           </IonCardContent>
         </IonCard>
@@ -341,8 +364,8 @@ export function PriceConsultation() {
               <IonList slot="content" inset>
                 {history.length === 0 ? (
                   <IonItem><IonLabel className="muted">Carregando...</IonLabel></IonItem>
-                ) : history.map((item, index) => (
-                  <IonItem key={`${item.receipt_access_key}-${index}`}>
+                ) : history.map((item) => (
+                  <IonItem key={`${item.receipt_access_key}-${item.purchase_date}`}>
                     <IonLabel>
                       <h3>{item.issuer_name}</h3>
                       <p>{formatDateShort(item.purchase_date)}</p>

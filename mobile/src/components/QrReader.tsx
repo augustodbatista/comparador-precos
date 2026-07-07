@@ -26,6 +26,8 @@ import { cameraOutline, scanOutline } from 'ionicons/icons'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'
+import { errorFeedback, successFeedback, tapFeedback } from '../services/interactionFeedback'
+import { BrandTitle } from './BrandTitle'
 
 const SCANNER_ID = 'qr-reader-container'
 const SCAN_INTERVAL_MS = 90
@@ -212,6 +214,7 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
   }
 
   async function openNativeCamera() {
+    void tapFeedback()
     try {
       stopCamera()
       setCameraStatus('opening')
@@ -239,6 +242,7 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
   }
 
   async function startScanner() {
+    void tapFeedback()
     setCameraStatus('opening')
     setCameraError(null)
     setScanHint('Abrindo camera...')
@@ -368,8 +372,8 @@ function ResultView({
           )}
 
           <IonList inset>
-            {receipt.items.map((item, index) => (
-              <IonItem key={`${item.code}-${index}`} data-testid="receipt-item">
+            {receipt.items.map((item) => (
+              <IonItem key={`${item.code}-${item.description}-${item.total}`} data-testid="receipt-item">
                 <IonLabel>
                   <h3>{item.normalized_name || item.description}</h3>
                   {item.normalized_name && item.normalized_name !== item.description && (
@@ -503,6 +507,7 @@ export function QrReader() {
 
   async function handleSave() {
     if (!receipt) return
+    void tapFeedback()
     setIsSaving(true)
     setSaveStatus('idle')
     setSaveError(null)
@@ -520,15 +525,18 @@ export function QrReader() {
       }
 
       setSaveStatus(response.status === 201 ? 'success' : 'already_saved')
+      void successFeedback()
     } catch (error) {
       setSaveError(formatError(error, 'Erro de conexão ao salvar a nota.'))
       setSaveStatus('error')
+      void errorFeedback()
     } finally {
       setIsSaving(false)
     }
   }
 
   function handleReset() {
+    void tapFeedback()
     setReceipt(null)
     setErrorMsg(null)
     setSaveStatus('idle')
@@ -543,7 +551,7 @@ export function QrReader() {
       <IonHeader>
         <IonToolbar>
           <IonTitle>
-            <img className="toolbar-logo" src="/assets/comparador-precos-logo.png" alt="Comparador de Preços" />
+            <BrandTitle />
           </IonTitle>
         </IonToolbar>
       </IonHeader>

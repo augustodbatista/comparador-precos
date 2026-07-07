@@ -45,7 +45,8 @@ export async function apiFetch(url: string, init: RequestInit = {}): Promise<Api
   }
 
   if (!Capacitor.isNativePlatform()) {
-    const response = await fetch(url, { ...init, headers })
+    const hasInit = Object.keys(init).length > 0
+    const response = token || hasInit ? await fetch(url, { ...init, headers }) : await fetch(url)
     if (response.status === 401) {
       clearToken()
       onUnauthorized?.()

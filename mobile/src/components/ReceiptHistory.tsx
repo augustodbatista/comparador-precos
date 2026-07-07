@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   IonAccordion,
   IonAccordionGroup,
   IonBadge,
   IonButton,
   IonCard,
-  IonCardContent,
   IonContent,
   IonHeader,
   IonInput,
@@ -19,6 +18,8 @@ import {
 } from '@ionic/react'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'
+import { tapFeedback } from '../services/interactionFeedback'
+import { BrandTitle } from './BrandTitle'
 import type { ReceiptData } from './QrReader'
 
 async function fetchReceipts(): Promise<ReceiptData[]> {
@@ -68,8 +69,8 @@ function ReceiptDetails({ receipt }: { receipt: ReceiptData }) {
   return (
     <div className="accordion-content">
       <IonList inset>
-        {receipt.items.map((item, index) => (
-          <IonItem key={`${receipt.access_key}-${item.code}-${index}`}>
+        {receipt.items.map((item) => (
+          <IonItem key={`${receipt.access_key}-${item.code}-${item.description}-${item.total}`}>
             <IonLabel>
               <h3>{item.normalized_name || item.description}</h3>
               <p>{item.qty} {item.unit} x {formatCurrency(item.unit_price)}</p>
@@ -90,33 +91,32 @@ export function ReceiptHistory() {
   const [storeFilter, setStoreFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     fetchReceipts().then(data => {
       setReceipts(data)
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => {
+      setErrorMessage('Nao foi possivel carregar o historico.')
+      setLoading(false)
+    })
   }, [])
 
-  const filtered = receipts.filter(receipt => {
+  const filtered = useMemo(() => receipts.filter(receipt => {
     if (storeFilter && !receipt.issuer.name.toLowerCase().includes(storeFilter.toLowerCase())) return false
     if (dateFrom && receipt.invoice.issued_at < dateFrom) return false
     if (dateTo && receipt.invoice.issued_at > `${dateTo}T23:59:59`) return false
     return true
-  })
-  const summary = computeSummary(filtered)
+  }), [dateFrom, dateTo, receipts, storeFilter])
+  const summary = useMemo(() => computeSummary(filtered), [filtered])
   const activeFilters = [storeFilter, dateFrom, dateTo].filter(Boolean).length
 
   return (
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>
-            <span className="toolbar-brand">
-              <img className="toolbar-logo-small" src="/assets/comparador-precos-logo.png" alt="" />
-              Histórico
-            </span>
-          </IonTitle>
+          <IonTitle><BrandTitle label="Historico" /></IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen className="ion-padding">
@@ -127,12 +127,15 @@ export function ReceiptHistory() {
           </IonCard>
         )}
 
-        {!loading && receipts.length === 0 && (
-          <IonCard>
-            <IonCardContent>
-              <p className="muted centered">Nenhum cupom salvo ainda. Escaneie e salve uma nota primeiro.</p>
-            </IonCardContent>
-          </IonCard>
+        {!loading && errorMessage && (
+          <div className="inline-alert" role="alert">{errorMessage}</div>
+        )}
+
+        {!loading && !errorMessage && receipts.length === 0 && (
+          <div className="empty-state">
+            <strong>Nenhum cupom salvo</strong>
+            <span>Escaneie e salve uma nota primeiro.</span>
+          </div>
         )}
 
         {!loading && receipts.length > 0 && (
@@ -201,6 +204,7 @@ export function ReceiptHistory() {
                   />
                   {activeFilters > 0 && (
                     <IonButton fill="outline" onClick={() => {
+                      void tapFeedback()
                       setStoreFilter('')
                       setDateFrom('')
                       setDateTo('')
@@ -217,11 +221,10 @@ export function ReceiptHistory() {
             </p>
 
             {filtered.length === 0 ? (
-              <IonCard>
-                <IonCardContent>
-                  <p className="muted centered">Nenhum cupom corresponde aos filtros.</p>
-                </IonCardContent>
-              </IonCard>
+              <div className="empty-state">
+                <strong>Nenhum resultado</strong>
+                <span>Nenhum cupom corresponde aos filtros.</span>
+              </div>
             ) : (
               <IonAccordionGroup>
                 {filtered.map(receipt => (
