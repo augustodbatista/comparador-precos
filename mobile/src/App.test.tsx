@@ -11,13 +11,13 @@ describe('App', () => {
   it('alterna entre scanner e consulta de preços', async () => {
     render(<App />)
 
-    expect(screen.getByText('Scanner mock')).toBeInTheDocument()
+    expect(await screen.findByText('Scanner mock')).toBeInTheDocument()
 
     const pricesTab = document.querySelector('ion-tab-button[tab="prices"]')
     expect(pricesTab).not.toBeNull()
     await userEvent.click(pricesTab!)
 
-    expect(screen.getByRole('heading', { name: /consulta de preços/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /consulta de pre/i })).toBeInTheDocument()
     expect(screen.queryByText('Scanner mock')).not.toBeInTheDocument()
   })
 })

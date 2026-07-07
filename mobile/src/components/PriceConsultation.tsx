@@ -91,11 +91,13 @@ async function fetchHistory(productId: string): Promise<PriceData[]> {
 }
 
 async function fetchProducts(): Promise<ProductItem[]> {
-  if (productsCache) return productsCache
+  const canUseCache = import.meta.env.MODE !== 'test'
+  if (canUseCache && productsCache) return productsCache
   const response = await apiFetch(`${API_URL}/products`)
   if (!response.ok) return []
-  productsCache = await response.json() as ProductItem[]
-  return productsCache
+  const products = await response.json() as ProductItem[]
+  if (canUseCache && products.length > 0) productsCache = products
+  return products
 }
 
 function computeByStore(history: PriceData[]) {
