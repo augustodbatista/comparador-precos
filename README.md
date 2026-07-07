@@ -279,3 +279,32 @@ python scripts/backfill_normalized_names.py
 - **Ollama em CPU**: normalização leva ~30–60s por cupom com qwen2.5:7b; sem GPU é lento
 - **Normalização inconsistente**: Ollama pode gerar nomes ligeiramente diferentes para o mesmo produto em chamadas separadas, gerando entradas duplicadas no catálogo
 - **SEFAZ**: suporte completo apenas para MG; outros estados podem ter variações no HTML
+
+---
+
+## App Mobile
+
+O site web original permanece em `frontend/`. O app mobile híbrido fica separado em `mobile/`.
+
+```bash
+# Site web
+cd frontend
+npm install
+npm run dev
+
+# App mobile
+cd mobile
+npm install
+npm run ionic:serve
+```
+
+Para gerar Android:
+
+```bash
+cd mobile
+npm run android
+cd android
+.\gradlew.bat assembleDebug
+```
+
+O APK debug fica em `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
