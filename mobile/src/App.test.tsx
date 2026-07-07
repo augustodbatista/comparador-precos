@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 vi.mock('./components/QrReader', () => ({
@@ -8,6 +8,10 @@ vi.mock('./components/QrReader', () => ({
 }))
 
 describe('App', () => {
+  beforeEach(() => {
+    localStorage.setItem('auth_token', 'test-token')
+  })
+
   it('alterna entre scanner e consulta de preços', async () => {
     render(<App />)
 

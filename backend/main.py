@@ -66,6 +66,13 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+# Health leve usado pelo mobile para acordar cold start antes do login.
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Health check leve para acordar o backend sem tocar MongoDB nem Groq."""
+    return {"status": "ok"}
+
+
 # Registra os roteadores — cada um agrupa seus próprios endpoints
 app.include_router(auth_router)      # POST /auth/signup, POST /auth/login
 app.include_router(receipts_router)  # GET /receipts, POST /receipts

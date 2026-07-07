@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   IonButton,
@@ -16,7 +16,7 @@ import {
 } from '@ionic/react'
 import { API_URL } from '../config/api'
 import { BrandTitle } from './BrandTitle'
-import { apiFetch, setToken } from '../services/apiClient'
+import { apiFetch, setToken, warmUpApi } from '../services/apiClient'
 
 type Mode = 'login' | 'signup'
 type Strength = { label: string; level: 'weak' | 'medium' | 'strong' }
@@ -52,6 +52,10 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
   const strength = passwordStrength(password)
   const passwordType = showPassword ? 'text' : 'password'
 
+  useEffect(() => {
+    void warmUpApi(API_URL)
+  }, [])
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
@@ -76,6 +80,7 @@ export function Auth({ onAuthenticated }: { onAuthenticated: (token: string) => 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        timeoutMs: 45000,
       })
 
       if (!response.ok) {

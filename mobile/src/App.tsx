@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import {
   IonApp,
   IonCard,
@@ -15,6 +15,9 @@ import {
 import { IonReactRouter } from '@ionic/react-router'
 import { Redirect, Route } from 'react-router-dom'
 import { pricetagOutline, qrCodeOutline, receiptOutline } from 'ionicons/icons'
+import { API_URL } from './config/api'
+import { Auth } from './components/Auth'
+import { getToken, setUnauthorizedHandler, warmUpApi } from './services/apiClient'
 
 const QrReader = lazy(() => import('./components/QrReader').then((module) => ({ default: module.QrReader })))
 const PriceConsultation = lazy(() =>
@@ -39,6 +42,22 @@ function PageFallback() {
 }
 
 export default function App() {
+  const [authToken, setAuthToken] = useState(() => getToken())
+
+  useEffect(() => {
+    void warmUpApi(API_URL)
+    setUnauthorizedHandler(() => setAuthToken(null))
+    return () => setUnauthorizedHandler(null)
+  }, [])
+
+  if (!authToken) {
+    return (
+      <IonApp>
+        <Auth onAuthenticated={setAuthToken} />
+      </IonApp>
+    )
+  }
+
   return (
     <IonApp>
       <IonReactRouter>

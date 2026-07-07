@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 _GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 _MODEL = "llama-3.3-70b-versatile"
-_TIMEOUT = 30.0
+_TIMEOUT = float(os.getenv("GROQ_TIMEOUT_SECONDS", "8"))
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 CANONICAL_THRESHOLD = 0.97

@@ -5,6 +5,7 @@ GET  /receipts         — lista histórico salvo no banco (do usuário autentic
 GET  /receipts?url=... — busca um cupom na SEFAZ pelo QR Code
 POST /receipts         — salva um cupom no banco com normalização de nomes
 """
+import asyncio
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pymongo.errors import DuplicateKeyError
@@ -95,11 +96,19 @@ async def save_receipt(
     """
     db = request.app.state.db
 
-    descriptions = [item.description for item in body.items]
-    existing_names = await list_all_product_names(db)
-    normalized = await normalize_items(descriptions, existing_names)
+    existing = await find_any_by_access_key(db, body.access_key)
+    if existing:
+        if existing.get("user_id") == current_user:
+            response.status_code = 200
+            return ReceiptData(**existing)
+        raise HTTPException(status_code=409, detail="Este cupom ja foi salvo por outra conta.")
 
-    current_product_ids = await find_product_ids_by_description(db, descriptions)
+    descriptions = [item.description for item in body.items]
+    existing_names, current_product_ids = await asyncio.gather(
+        list_all_product_names(db),
+        find_product_ids_by_description(db, descriptions),
+    )
+    normalized = await normalize_items(descriptions, existing_names)
     final_names = []
     for desc, norm in zip(descriptions, normalized):
         current = current_product_ids.get(desc)
@@ -123,10 +132,10 @@ async def save_receipt(
             response.status_code = 200
             return ReceiptData(**existing)
         # Chave já pertence a OUTRO usuário — nunca retorna os dados dele
-        raise HTTPException(status_code=409, detail="Este cupom já foi salvo por outra conta.")
+        raise HTTPException(status_code=409, detail="Este cupom ja foi salvo por outra conta.")
 
-    for item in items:
-        await upsert_product(db, item.normalized_name or item.description)
+    product_names = {item.normalized_name or item.description for item in items}
+    await asyncio.gather(*(upsert_product(db, name) for name in product_names))
 
     await insert_prices(db, body.model_dump(), [item.model_dump() for item in items])
 

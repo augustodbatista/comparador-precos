@@ -1,8 +1,14 @@
 import { Capacitor, CapacitorHttp, type HttpOptions } from '@capacitor/core'
 
 type JsonBody = string | FormData | URLSearchParams | Record<string, unknown> | null | undefined
+type ApiFetchOptions = RequestInit & {
+  skipAuth?: boolean
+  timeoutMs?: number
+}
+
 const TOKEN_KEY = 'auth_token'
 let onUnauthorized: (() => void) | null = null
+const warmUpRequests = new Map<string, Promise<void>>()
 
 export interface ApiResponse {
   ok: boolean
@@ -22,7 +28,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-export function setUnauthorizedHandler(handler: () => void): void {
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler
 }
 
@@ -36,35 +42,68 @@ function parseBody(body: JsonBody) {
   }
 }
 
-export async function apiFetch(url: string, init: RequestInit = {}): Promise<ApiResponse> {
+function createTimedSignal(timeoutMs?: number) {
+  if (!timeoutMs || typeof AbortController === 'undefined') return {}
+
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  return { signal: controller.signal, timeoutId }
+}
+
+export function warmUpApi(baseUrl: string): Promise<void> {
+  if (import.meta.env.MODE === 'test') return Promise.resolve()
+
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
+  const existing = warmUpRequests.get(normalizedBaseUrl)
+  if (existing) return existing
+
+  const request = apiFetch(`${normalizedBaseUrl}/health`, {
+    skipAuth: true,
+    timeoutMs: 10000,
+  }).then(() => undefined).catch(() => undefined)
+
+  warmUpRequests.set(normalizedBaseUrl, request)
+  return request
+}
+
+export async function apiFetch(url: string, init: ApiFetchOptions = {}): Promise<ApiResponse> {
+  const { skipAuth, timeoutMs, ...requestInit } = init
   const headers = new Headers(init.headers)
-  const token = getToken()
+  const token = skipAuth ? null : getToken()
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
 
   if (!Capacitor.isNativePlatform()) {
-    const hasInit = Object.keys(init).length > 0
-    const response = token || hasInit ? await fetch(url, { ...init, headers }) : await fetch(url)
-    if (response.status === 401) {
-      clearToken()
-      onUnauthorized?.()
+    const hasRequestInit = Object.keys(requestInit).length > 0
+    const timed = requestInit.signal ? {} : createTimedSignal(timeoutMs)
+
+    try {
+      const response = token || hasRequestInit || timed.signal
+        ? await fetch(url, { ...requestInit, headers, signal: requestInit.signal || timed.signal })
+        : await fetch(url)
+      if (!skipAuth && response.status === 401) {
+        clearToken()
+        onUnauthorized?.()
+      }
+      return response
+    } finally {
+      if (timed.timeoutId) window.clearTimeout(timed.timeoutId)
     }
-    return response
   }
 
   const options: HttpOptions = {
     url,
-    method: init.method || 'GET',
+    method: requestInit.method || 'GET',
     headers: Object.fromEntries(headers.entries()),
-    data: parseBody(init.body as JsonBody),
-    connectTimeout: 60000,
-    readTimeout: 60000,
+    data: parseBody(requestInit.body as JsonBody),
+    connectTimeout: timeoutMs || 60000,
+    readTimeout: timeoutMs || 60000,
   }
 
   const response = await CapacitorHttp.request(options)
-  if (response.status === 401) {
+  if (!skipAuth && response.status === 401) {
     clearToken()
     onUnauthorized?.()
   }
