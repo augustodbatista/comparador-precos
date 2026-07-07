@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import {
@@ -22,7 +22,7 @@ import {
   IonToolbar,
   IonToast,
 } from '@ionic/react'
-import { cameraOutline, scanOutline } from 'ionicons/icons'
+import { cameraOutline, closeCircleOutline, scanOutline } from 'ionicons/icons'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'
@@ -84,16 +84,13 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const lastScanRef = useRef(0)
+  const isScannerVisibleRef = useRef(true)
   const scannedRef = useRef(false)
   const [cameraStatus, setCameraStatus] = useState<'idle' | 'opening' | 'ready' | 'error'>('idle')
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [scanHint, setScanHint] = useState('Abra a camera para iniciar a leitura.')
 
-  useEffect(() => {
-    return stopCamera
-  }, [])
-
-  function stopCamera() {
+  const stopCamera = useCallback(() => {
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
@@ -106,7 +103,55 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
       videoRef.current.pause()
       videoRef.current.srcObject = null
     }
-  }
+  }, [])
+
+  const closeCamera = useCallback((message = 'Abra a camera para iniciar a leitura.') => {
+    stopCamera()
+    scannedRef.current = false
+    setCameraStatus('idle')
+    setCameraError(null)
+    setScanHint(message)
+  }, [stopCamera])
+
+  const markScannerHidden = useCallback(() => {
+    isScannerVisibleRef.current = false
+    closeCamera()
+  }, [closeCamera])
+
+  const markScannerVisible = useCallback(() => {
+    isScannerVisibleRef.current = true
+  }, [])
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        markScannerHidden()
+      } else {
+        markScannerVisible()
+      }
+    }
+
+    function handleTabsWillChange(event: Event) {
+      const nextTab = (event as CustomEvent<{ tab?: string }>).detail?.tab
+      if (!nextTab) return
+      if (nextTab === 'scanner') {
+        markScannerVisible()
+      } else {
+        markScannerHidden()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    document.addEventListener('ionTabsWillChange', handleTabsWillChange)
+    window.addEventListener('pagehide', markScannerHidden)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.removeEventListener('ionTabsWillChange', handleTabsWillChange)
+      window.removeEventListener('pagehide', markScannerHidden)
+      stopCamera()
+    }
+  }, [markScannerHidden, markScannerVisible, stopCamera])
 
   function decodeCanvas(width: number, height: number) {
     const canvas = canvasRef.current
@@ -217,6 +262,7 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
     void tapFeedback()
     try {
       stopCamera()
+      isScannerVisibleRef.current = true
       setCameraStatus('opening')
       setCameraError(null)
       setScanHint('Abrindo camera do Android...')
@@ -233,6 +279,7 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
         throw new Error('A camera nao retornou uma imagem para leitura.')
       }
 
+      if (!isScannerVisibleRef.current) return
       await scanImageSource(photo.dataUrl)
     } catch (error) {
       setCameraStatus('error')
@@ -243,6 +290,8 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
 
   async function startScanner() {
     void tapFeedback()
+    stopCamera()
+    isScannerVisibleRef.current = true
     setCameraStatus('opening')
     setCameraError(null)
     setScanHint('Abrindo camera...')
@@ -263,8 +312,17 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
         },
         audio: false,
       })
+
+      if (!isScannerVisibleRef.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+
       const video = videoRef.current
-      if (!video) throw new Error('Preview da camera nao encontrado.')
+      if (!video) {
+        stream.getTracks().forEach((track) => track.stop())
+        throw new Error('Preview da camera nao encontrado.')
+      }
 
       streamRef.current = stream
       video.srcObject = stream
@@ -297,6 +355,19 @@ function ScannerView({ onScan }: { onScan: (data: NfceData | null) => void | Pro
             >
               <IonIcon icon={scanOutline} slot="start" />
               {cameraStatus === 'opening' ? 'Abrindo camera...' : 'Abrir camera'}
+            </IonButton>
+          )}
+          {cameraStatus === 'ready' && (
+            <IonButton
+              expand="block"
+              fill="outline"
+              onClick={() => {
+                void tapFeedback()
+                closeCamera('Camera fechada.')
+              }}
+            >
+              <IonIcon icon={closeCircleOutline} slot="start" />
+              Fechar camera
             </IonButton>
           )}
           <IonButton
@@ -506,7 +577,7 @@ export function QrReader() {
   }
 
   async function handleSave() {
-    if (!receipt) return
+    if (!receipt || isSaving || saveStatus === 'success' || saveStatus === 'already_saved') return
     void tapFeedback()
     setIsSaving(true)
     setSaveStatus('idle')
@@ -517,6 +588,7 @@ export function QrReader() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(receipt),
+        timeoutMs: 45000,
       })
 
       if (!response.ok) {
