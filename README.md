@@ -1,17 +1,18 @@
 # Comparador de Preços NFC-e
 
-Escaneia QR Codes de cupons fiscais eletrônicos (NFC-e), extrai os produtos e preços, e permite comparar o preço de um produto entre diferentes lojas ao longo do tempo.
+Escaneia QR Codes de cupons fiscais eletrônicos (NFC-e), extrai os produtos e preços, e permite comparar o preço de um produto entre diferentes lojas ao longo do tempo. Multi-usuário: cada conta tem seu próprio histórico de cupons, mas o catálogo de preços é compartilhado entre todos.
 
 ---
 
 ## O que faz
 
-1. **Escaneia** o QR Code impresso no cupom com a câmera do celular
-2. **Busca** o HTML da nota na SEFAZ (contornando CORS e bloqueios de User-Agent)
-3. **Extrai** emitente, produtos, quantidades, preços e dados da nota fiscal
-4. **Normaliza** os nomes dos produtos via Ollama (ex: `REFRI COCA COLA PET 2L` → `Refrigerante Coca-Cola 2l`)
-5. **Salva** no MongoDB: cabeçalho do cupom em `receipts`, cada item em `prices`, catálogo em `products`
-6. **Compara** o último preço e o menor preço já registrado para qualquer produto
+1. **Login / cadastro** — conta com senha (bcrypt) e sessão via JWT
+2. **Escaneia** o QR Code impresso no cupom com a câmera do celular
+3. **Busca** o HTML da nota na SEFAZ (contornando CORS e bloqueios de User-Agent)
+4. **Extrai** emitente, produtos, quantidades, preços e dados da nota fiscal
+5. **Normaliza** os nomes dos produtos via Groq (ex: `REFRIG COCA COLA PET 2L` → `Refrigerante Coca-Cola Pet 2L`)
+6. **Salva** no MongoDB: cabeçalho do cupom em `receipts` (privado por usuário), cada item em `prices`, catálogo em `products`
+7. **Compara** o último preço e o menor preço já registrado para qualquer produto, entre todas as lojas
 
 ---
 
@@ -19,50 +20,53 @@ Escaneia QR Codes de cupons fiscais eletrônicos (NFC-e), extrai os produtos e p
 
 ```
 [Celular / Browser]
-       │  escaneia QR Code
+       │  login + escaneia QR Code
        ▼
 [Frontend — Vercel]          https://comparador-precos-xi.vercel.app
-  React 18 + TypeScript
-       │  GET /receipts?url=   POST /receipts
-       │  GET /prices/latest   GET /prices/lowest
+  React 18 + TypeScript       (Authorization: Bearer <JWT>)
+       │  POST /auth/login    GET /receipts   POST /receipts
+       │  GET /prices/latest  GET /prices/lowest  GET /prices/history
        ▼
 [Backend — Render]           https://comparador-precos-yiqd.onrender.com
   Python 3.11 + FastAPI
-       │  GET (SEFAZ)          POST /api/chat (normalização)
+       │  GET (SEFAZ)          POST (normalização)
        ▼                              ▼
-[SEFAZ MG / outros]          [Ollama local via ngrok]
-                               qwen2.5:7b
+[SEFAZ MG / outros]          [Groq API]
+                               llama-3.3-70b-versatile
        │
        ▼
-[MongoDB Atlas]              collection: receipts, prices, products
+[MongoDB Atlas]              collections: users, receipts, prices, products
 ```
 
 ### Collections MongoDB
 
 | Collection | Conteúdo |
 |---|---|
-| `receipts` | Cabeçalho do cupom: emitente, totais, dados da nota, `access_key` (único) |
-| `prices` | Um documento por item comprado: preço, quantidade, data, loja |
-| `products` | Catálogo de produtos únicos por `normalized_name` |
+| `users` | Conta: `email` (único), senha hasheada, telefone |
+| `receipts` | Cabeçalho do cupom: emitente, totais, dados da nota, `access_key` (único global), `user_id` (privado por usuário) |
+| `prices` | Um documento por item comprado: preço, quantidade, data, loja (compartilhado) |
+| `products` | Catálogo de produtos únicos por `normalized_name` (compartilhado) |
+
+### Normalização de nomes (pipeline de 3 fases)
+
+O `POST /receipts` normaliza cada descrição bruta da SEFAZ em `backend/app/services/normalizer.py`:
+
+1. **`pre_process`** — expansão determinística de abreviações (`LVIDA`→`Longa Vida`, `REFRIG`→`Refrigerante`, …) e normalização de encoding (NFC)
+2. **LLM (Groq)** — Title Case, expansão residual e correção de typos
+3. **`canonicalize`** — fuzzy match (`SequenceMatcher ≥ 0.97`) contra produtos já existentes, garantindo que o mesmo produto não apareça com dois nomes
+
+Fallback silencioso: se a `GROQ_API_KEY` faltar ou a API falhar, as fases 1 e 3 rodam sozinhas — o insert nunca trava.
 
 ---
 
 ## Pré-requisitos
 
-### Para rodar localmente
-
-| Componente | Versão |
+| Componente | Versão / Observação |
 |---|---|
 | Python | 3.11+ |
 | Node.js | 18+ |
 | MongoDB | Atlas (ou local) |
-| Ollama | qualquer versão recente |
-| Modelo Ollama | `qwen2.5:7b` |
-
-### Para normalização em produção (Render → Ollama local)
-
-- **ngrok** — expõe o Ollama local para a internet
-- **OLLAMA_ORIGINS=\*** — necessário para o Ollama aceitar requests externos
+| Groq API key | grátis em [console.groq.com](https://console.groq.com) — opcional; sem ela a normalização cai no fallback |
 
 ---
 
@@ -73,11 +77,11 @@ Escaneia QR Codes de cupons fiscais eletrônicos (NFC-e), extrai os produtos e p
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env   # editar MONGODB_URL e DB_NAME
+cp .env.example .env   # editar MONGODB_URL, GROQ_API_KEY, JWT_SECRET_KEY
 uvicorn main:app --reload
 ```
 
-API disponível em `http://localhost:8000`  
+API disponível em `http://localhost:8000`
 Documentação interativa em `http://localhost:8000/docs`
 
 ### 2. Frontend
@@ -90,17 +94,6 @@ npm run dev
 
 App disponível em `http://localhost:5173`
 
-### 3. Ollama
-
-```bash
-# Instalar o modelo (só na primeira vez)
-ollama pull qwen2.5:7b
-
-# Rodar com permissão para requests externos (ngrok)
-$env:OLLAMA_ORIGINS="*"; ollama serve   # Windows PowerShell
-OLLAMA_ORIGINS="*" ollama serve         # Linux / macOS
-```
-
 ---
 
 ## Variáveis de ambiente
@@ -109,9 +102,10 @@ OLLAMA_ORIGINS="*" ollama serve         # Linux / macOS
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `MONGODB_URL` | — | URI de conexão com o MongoDB Atlas |
+| `MONGODB_URL` | `mongodb://localhost:27017` | URI de conexão com o MongoDB |
 | `DB_NAME` | `comparador_precos` | Nome do banco de dados |
-| `OLLAMA_URL` | `http://localhost:11434` | URL do Ollama (local ou ngrok) |
+| `GROQ_API_KEY` | — | Chave da Groq API para normalização (opcional) |
+| `JWT_SECRET_KEY` | — | Segredo usado para assinar os tokens JWT |
 
 ### Frontend (`.env.local`, opcional)
 
@@ -132,34 +126,27 @@ Deploy automático via push no repositório. Sem configuração adicional.
 - Branch: `master`
 - Build: `pip install -r requirements.txt`
 - Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Variáveis de ambiente no painel do Render: `MONGODB_URL`, `DB_NAME`, `OLLAMA_URL`
+- Variáveis de ambiente no painel do Render: `MONGODB_URL`, `DB_NAME`, `GROQ_API_KEY`, `JWT_SECRET_KEY`
 
-### Ollama → ngrok (normalização em produção)
-
-O Render não tem acesso ao Ollama local. Para normalizar os nomes em produção:
-
-```powershell
-# 1. Rodar o Ollama com ORIGINS aberto
-[System.Environment]::SetEnvironmentVariable("OLLAMA_ORIGINS", "*", "User")
-# reiniciar o Ollama (tray icon → Quit → reabrir)
-
-# 2. Expor via ngrok
-ngrok http 11434
-# Copiar a URL gerada: https://xxxx.ngrok-free.app
-
-# 3. Atualizar OLLAMA_URL no Render
-# Render Dashboard → comparador-precos-api → Environment → OLLAMA_URL = https://xxxx.ngrok-free.app
-```
-
-> **Atenção:** A URL do ngrok muda toda vez que o ngrok reinicia. Atualizar o `OLLAMA_URL` no Render quando isso acontecer.
+A normalização em produção chama a Groq API diretamente — sem serviço local nem túnel.
 
 ---
 
 ## API
 
+Todos os endpoints de `receipts` e `prices` exigem o header `Authorization: Bearer <JWT>`, obtido em `/auth/login` ou `/auth/signup`. `access_key` é único globalmente: ao tentar salvar um cupom de outro dono, o backend responde `409` sem vazar os dados originais.
+
+### `POST /auth/signup`
+
+Cria uma conta e já devolve um JWT. `409` se o e-mail já existir.
+
+### `POST /auth/login`
+
+Autentica e devolve um JWT (validade 7 dias). `401` com mensagem genérica em e-mail/senha inválidos.
+
 ### `GET /receipts`
 
-Lista o histórico de cupons salvos, do mais recente ao mais antigo.
+Lista o histórico de cupons **do usuário logado**, do mais recente ao mais antigo.
 
 | Param | Tipo | Padrão | Descrição |
 |---|---|---|---|
@@ -168,7 +155,7 @@ Lista o histórico de cupons salvos, do mais recente ao mais antigo.
 
 ### `GET /receipts?url=<url_qrcode>`
 
-Consulta uma NFC-e pela URL do QR Code. Retorna os dados estruturados sem salvar.  
+Consulta uma NFC-e pela URL do QR Code. Retorna os dados estruturados sem salvar.
 Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
 
 | Status | Significado |
@@ -180,8 +167,8 @@ Se o cupom já estiver no banco, retorna os dados salvos sem chamar a SEFAZ.
 
 ### `POST /receipts`
 
-Salva um cupom no banco. Idempotente: retorna `201` na primeira vez e `200` nas seguintes.  
-Normaliza os nomes dos produtos via Ollama antes de salvar (fallback para descrição original se Ollama estiver fora).
+Salva um cupom no banco, associado ao usuário logado. Idempotente: `201` na primeira vez, `200` nas seguintes.
+Normaliza os nomes dos produtos via Groq antes de salvar (fallback para pré-processamento se a API estiver fora). `409` se a `access_key` já pertencer a outro usuário.
 
 ### `GET /products`
 
@@ -204,7 +191,7 @@ Histórico completo de preços para o produto, do mais recente ao mais antigo.
 ## Testes
 
 ```bash
-# Backend (72 testes)
+# Backend (132 testes)
 cd backend
 python -m pytest -v
 
@@ -219,45 +206,25 @@ npm run test:run
 
 Localizados em `backend/scripts/`. Rodar sempre de dentro da pasta `backend/`:
 
-### `renormalize_prices.py`
+### `dedup_and_renormalize.py`
 
-Re-normaliza via Ollama todos os itens em `prices` cujo `product_id` ainda é igual à `original_description` (fallback não normalizado). Usar quando cupons foram salvos sem Ollama disponível.
-
-```bash
-cd backend
-python scripts/renormalize_prices.py
-```
-
-Após rodar, reconstruir o catálogo manualmente:
-
-```bash
-python -c "
-import asyncio, os
-from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timezone
-load_dotenv()
-async def main():
-    client = AsyncIOMotorClient(os.getenv('MONGODB_URL'))
-    db = client[os.getenv('DB_NAME', 'comparador_precos')]
-    ids = await db['prices'].distinct('product_id')
-    await db['products'].drop()
-    now = datetime.now(timezone.utc)
-    await db['products'].insert_many([{'normalized_name': i, 'created_at': now} for i in ids])
-    await db['products'].create_index('normalized_name', unique=True)
-    print(f'{len(ids)} produtos')
-    client.close()
-asyncio.run(main())
-"
-```
+Re-passa todo o catálogo pelo pipeline de normalização atual, funde entradas duplicadas (ex: nomes all-caps salvos antes da Groq estar configurada) e reconstrói `products`. Usar quando o catálogo acumular variações do mesmo produto.
 
 ### `backfill_normalized_names.py`
 
 Migra cupons salvos no schema antigo (com `items[]` dentro de `receipts`) para o schema atual (itens em `prices`). Idempotente.
 
+### `backfill_receipt_user_id.py`
+
+Preenche `user_id` em cupons salvos antes do login multi-usuário existir. Idempotente.
+
+### `drop_collections.py`
+
+Zera collections do banco. Destrutivo — usar só em ambiente de desenvolvimento.
+
 ```bash
 cd backend
-python scripts/backfill_normalized_names.py
+python scripts/dedup_and_renormalize.py
 ```
 
 ---
@@ -275,16 +242,15 @@ python scripts/backfill_normalized_names.py
 
 ## Limitações conhecidas
 
-- **ngrok gratuito**: URL muda a cada reinicialização; atualizar `OLLAMA_URL` no Render manualmente
-- **Ollama em CPU**: normalização leva ~30–60s por cupom com qwen2.5:7b; sem GPU é lento
-- **Normalização inconsistente**: Ollama pode gerar nomes ligeiramente diferentes para o mesmo produto em chamadas separadas, gerando entradas duplicadas no catálogo
+- **Groq free tier**: sujeito a rate limit; ao estourar, a normalização cai no fallback (pré-processamento apenas) até o limite resetar
+- **Normalização inconsistente**: o LLM pode gerar nomes ligeiramente diferentes para o mesmo produto em chamadas separadas; o passo `canonicalize` mitiga, mas não elimina, entradas duplicadas no catálogo
 - **SEFAZ**: suporte completo apenas para MG; outros estados podem ter variações no HTML
 
 ---
 
 ## App Mobile
 
-O site web original permanece em `frontend/`. O app mobile híbrido fica separado em `mobile/`.
+O site web original permanece em `frontend/`. O app mobile híbrido (Ionic React + Capacitor) fica separado em `mobile/`.
 
 ```bash
 # Site web
@@ -298,7 +264,7 @@ npm install
 npm run ionic:serve
 ```
 
-Para gerar Android:
+Para gerar o Android:
 
 ```bash
 cd mobile
@@ -308,3 +274,4 @@ cd android
 ```
 
 O APK debug fica em `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+O backend aceita a origem `capacitor://localhost` para chamadas vindas do WebView Android.
