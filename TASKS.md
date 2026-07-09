@@ -106,6 +106,16 @@ produtos iguais em lojas diferentes têm codes internos distintos mas o mesmo no
 - `backend/tests/test_prices_endpoint.py` — fixtures com normalized_name, queries por nome
 - `backend/tests/test_receipts_endpoint.py` — mock normalize_items nos testes POST
 
+**Follow-up — migração Ollama → Groq:**
+A normalização migrou de Ollama local (qwen2.5:7b via ngrok) para a Groq API
+(`llama-3.3-70b-versatile`), eliminando o serviço local e o túnel. O `normalizer.py`
+virou um pipeline de 3 fases: `pre_process` (expansão determinística de abreviações +
+encoding NFC) → LLM (Groq, `response_format: json_object`, `temperature: 0`) →
+`canonicalize` (fuzzy match `SequenceMatcher ≥ 0.97` contra o catálogo, evita nomes
+duplicados). Fallback silencioso agora roda fases 1 e 3 sem LLM quando falta `GROQ_API_KEY`
+ou a API falha. `OLLAMA_URL` saiu; `GROQ_API_KEY` entrou no `.env`. `test_normalizer.py`
+subiu de 5 para 23 testes.
+
 ---
 
 ## Task 7 — Persistência no MongoDB (Motor) ✅
@@ -255,15 +265,23 @@ de duplicata de `POST /receipts` uma vez que cupons ficam privados.
 | Backend | test_qr_parser.py | 14 |
 | Backend | test_nfce_fetcher.py | 4 |
 | Backend | test_html_parser.py | 19 |
-| Backend | test_repositories_receipts.py | 7 |
-| Backend | test_normalizer.py | 5 |
-| Backend | test_receipts_endpoint.py | 13 |
-| Backend | test_prices_endpoint.py | 7 |
+| Backend | test_repositories_receipts.py | 10 |
+| Backend | test_repositories_products.py | 2 |
+| Backend | test_repositories_users.py | 5 |
+| Backend | test_normalizer.py | 23 |
+| Backend | test_receipts_endpoint.py | 18 |
+| Backend | test_prices_endpoint.py | 16 |
+| Backend | test_auth_service.py | 7 |
+| Backend | test_auth_endpoint.py | 14 |
 | Frontend | parseNfceQr.test.ts | 11 |
-| Frontend | App.test.tsx | 1 |
-| Frontend | QrReader.test.tsx | 8 |
+| Frontend | App.test.tsx | 4 |
+| Frontend | QrReader.test.tsx | 11 |
 | Frontend | PriceConsultation.test.tsx | 5 |
-| **Total** | | **94** |
+| Frontend | Auth.test.tsx | 11 |
+| Frontend | api.test.ts | 7 |
+| **Total** | | **181** |
+
+Mobile (`mobile/`): 27 testes — ver seção "App Mobile Ionic/Capacitor".
 
 ---
 
