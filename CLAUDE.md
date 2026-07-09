@@ -14,7 +14,7 @@
 
 - GitHub: https://github.com/augustodbatista/comparador-precos
 - Frontend live: https://comparador-precos-xi.vercel.app
-- Backend: local por enquanto (deploy previsto após Task 5)
+- Backend live: https://comparador-precos-yiqd.onrender.com (Render)
 
 ## Decisões arquiteturais
 
