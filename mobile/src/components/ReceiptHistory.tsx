@@ -116,7 +116,7 @@ export function ReceiptHistory() {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle><BrandTitle label="Historico" /></IonTitle>
+          <IonTitle><BrandTitle /></IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen className="ion-padding">

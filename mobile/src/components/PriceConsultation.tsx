@@ -225,10 +225,10 @@ export function PriceConsultation() {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle><BrandTitle label="Precos" /></IonTitle>
+          <IonTitle><BrandTitle /></IonTitle>
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen className="ion-padding">
+      <IonContent fullscreen scrollY className="ion-padding">
         <IonCard>
           <IonCardHeader>
             <IonCardTitle aria-hidden="true">Consulta de preços</IonCardTitle>
@@ -255,18 +255,18 @@ export function PriceConsultation() {
             />
 
             {showList && (
-              <IonList
-                inset
-                className="product-list"
-                onTouchMove={(event) => event.stopPropagation()}
-                onWheel={(event) => event.stopPropagation()}
-              >
+              <div className="product-list-scroll" role="listbox" aria-label="Produtos encontrados">
                 {filtered.map((product) => (
-                  <IonItem button key={productLabel(product)} onClick={() => handleSelect(product)}>
-                    <IonLabel>{productLabel(product)}</IonLabel>
-                  </IonItem>
+                  <button
+                    className="product-option"
+                    key={productLabel(product)}
+                    type="button"
+                    onClick={() => handleSelect(product)}
+                  >
+                    {productLabel(product)}
+                  </button>
                 ))}
-              </IonList>
+              </div>
             )}
 
             {productsLoading && (

@@ -456,20 +456,44 @@ ion-item {
   width: 62%;
 }
 
-.product-list {
+.product-list-scroll {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   display: block;
-  max-height: min(48vh, 420px);
+  margin-top: 0.7rem;
+  max-height: min(44vh, 360px);
   min-height: 120px;
-  overscroll-behavior: contain;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
+  overscroll-behavior-y: contain;
   scrollbar-width: thin;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
-.product-list ion-item {
-  min-height: 48px;
+.product-option {
+  align-items: center;
+  background: #ffffff;
+  border: 0;
+  border-bottom: 1px solid #e4eeeb;
+  color: var(--text);
+  display: flex;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  min-height: 50px;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+
+.product-option:last-child {
+  border-bottom: 0;
+}
+
+.product-option:active {
+  background: #eef8f5;
 }
 
 .price-result h3 {

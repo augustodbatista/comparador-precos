@@ -1,4 +1,4 @@
-# App Mobile - Comparador de Precos
+# App Mobile - Comparador de Preços NFC-e
 
 Aplicacao mobile hibrida em Ionic React + Capacitor. O site web original continua em `../frontend`; esta pasta contem somente o app mobile e o projeto Android.
 

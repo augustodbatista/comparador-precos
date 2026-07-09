@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "ionic:serve": "vite --host 0.0.0.0",
     "ionic:build": "npm run build",
-    "cap:init": "cap init \"Comparador de Preços\" br.com.jpcdo00.comparadorprecos --web-dir dist",
+    "cap:init": "cap init \"Comparador de Preços NFC-e\" br.com.jpcdo00.comparadorprecos --web-dir dist",
     "cap:add:android": "cap add android",
     "cap:sync": "cap sync android",
     "cap:open:android": "cap open android",

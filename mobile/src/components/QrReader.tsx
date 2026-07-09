@@ -22,7 +22,11 @@ import {
   IonToolbar,
   IonToast,
 } from '@ionic/react'
-import { cameraOutline, closeCircleOutline, scanOutline } from 'ionicons/icons'
+import {
+  cameraOutline,
+  closeCircleOutline,
+  scanOutline,
+} from 'ionicons/icons'
 import { parseNfceQr, type NfceData } from '../utils/parseNfceQr'
 import { API_URL } from '../config/api'
 import { apiFetch } from '../services/apiClient'

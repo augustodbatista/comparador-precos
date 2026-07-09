@@ -14,10 +14,10 @@ import {
 } from '@ionic/react'
 import { IonReactRouter } from '@ionic/react-router'
 import { Redirect, Route } from 'react-router-dom'
-import { pricetagOutline, qrCodeOutline, receiptOutline } from 'ionicons/icons'
+import { logOutOutline, pricetagOutline, qrCodeOutline, receiptOutline } from 'ionicons/icons'
 import { API_URL } from './config/api'
 import { Auth } from './components/Auth'
-import { getToken, setUnauthorizedHandler, warmUpApi } from './services/apiClient'
+import { clearToken, getToken, setUnauthorizedHandler, warmUpApi } from './services/apiClient'
 
 const QrReader = lazy(() => import('./components/QrReader').then((module) => ({ default: module.QrReader })))
 const PriceConsultation = lazy(() =>
@@ -50,6 +50,11 @@ export default function App() {
     return () => setUnauthorizedHandler(null)
   }, [])
 
+  function handleLogout() {
+    clearToken()
+    setAuthToken(null)
+  }
+
   if (!authToken) {
     return (
       <IonApp>
@@ -67,24 +72,31 @@ export default function App() {
               <Route exact path="/scanner" component={QrReader} />
               <Route exact path="/prices" component={PriceConsultation} />
               <Route exact path="/history" component={ReceiptHistory} />
+              <Route exact path="/logout">
+                <Redirect to="/scanner" />
+              </Route>
             </Suspense>
             <Route exact path="/">
               <Redirect to="/scanner" />
             </Route>
           </IonRouterOutlet>
 
-          <IonTabBar slot="bottom">
+          <IonTabBar slot="bottom" className="app-tab-bar">
             <IonTabButton tab="scanner" href="/scanner" aria-label="Scanner">
               <IonIcon icon={qrCodeOutline} />
               <IonLabel>Scanner</IonLabel>
             </IonTabButton>
-            <IonTabButton tab="prices" href="/prices" aria-label="Precos">
+            <IonTabButton tab="prices" href="/prices" aria-label="Preços">
               <IonIcon icon={pricetagOutline} />
-              <IonLabel>Precos</IonLabel>
+              <IonLabel>Preços</IonLabel>
             </IonTabButton>
             <IonTabButton tab="history" href="/history" aria-label="Historico">
               <IonIcon icon={receiptOutline} />
               <IonLabel>Historico</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="logout" href="/logout" onClick={handleLogout} aria-label="Sair">
+              <IonIcon icon={logOutOutline} />
+              <IonLabel>Sair</IonLabel>
             </IonTabButton>
           </IonTabBar>
         </IonTabs>
