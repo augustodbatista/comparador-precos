@@ -4,6 +4,8 @@ from pymongo.errors import PyMongoError
 
 from app.repositories.connection import garantir_indices
 
+MENSAGEM_BANCO_INDISPONIVEL = "Banco de dados indisponível no momento. Tente de novo em instantes."
+
 
 async def exigir_banco_pronto(request: Request) -> None:
     """Bloqueia a gravação até o banco responder e ter os índices criados.
@@ -14,7 +16,4 @@ async def exigir_banco_pronto(request: Request) -> None:
     try:
         await garantir_indices(request.app.state)
     except PyMongoError:
-        raise HTTPException(
-            status_code=503,
-            detail="Banco de dados indisponível no momento. Tente de novo em instantes.",
-        )
+        raise HTTPException(status_code=503, detail=MENSAGEM_BANCO_INDISPONIVEL)

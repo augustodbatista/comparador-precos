@@ -9,6 +9,7 @@ import os
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import ConfigurationError
 
 # Carrega variáveis do .env (ignorado em produção onde as vars já estão no ambiente)
 load_dotenv()
@@ -51,6 +52,22 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["users"].create_index("email", unique=True)
     # Índice composto para GET /receipts (filtra por usuário, ordena por mais recente)
     await db["receipts"].create_index([("user_id", 1), ("created_at", -1)])
+
+
+class BancoIndisponivel:
+    """Ocupa o lugar do banco quando nem o cliente do MongoDB pôde ser criado.
+
+    Caso real (set/2026): o cluster do Atlas deixou de existir e o construtor
+    do cliente falhou ao resolver o registro SRV da MONGODB_URL. Em vez de
+    derrubar o app, ele sobe com este objeto em app.state.db: qualquer acesso a
+    uma collection lança ConfigurationError, que o main.py converte em 503.
+    """
+
+    def __init__(self, erro: Exception):
+        self.erro = erro
+
+    def __getitem__(self, nome):
+        raise ConfigurationError(f"banco indisponível ({self.erro})")
 
 
 async def garantir_indices(state) -> None:
