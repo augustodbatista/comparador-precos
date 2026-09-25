@@ -2,12 +2,14 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from pymongo.errors import PyMongoError
+from pymongo.errors import ConfigurationError, ConnectionFailure, PyMongoError
 
-from app.repositories.connection import garantir_indices, get_client, get_db
+from app.controllers.dependencies import MENSAGEM_BANCO_INDISPONIVEL
+from app.repositories.connection import BancoIndisponivel, garantir_indices, get_client, get_db
 from app.controllers.auth import router as auth_router
 from app.controllers.receipts import router as receipts_router
 from app.controllers.prices import router as prices_router
@@ -19,7 +21,17 @@ logger = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ciclo de vida da aplicação: conecta ao MongoDB no startup e fecha a conexão no shutdown."""
-    client = get_client()
+    try:
+        client = get_client()
+    except PyMongoError as e:
+        # A MONGODB_URL nem vira cliente: cluster excluído, host inexistente ou
+        # URL malformada. O app sobe mesmo assim, respondendo 503 nas rotas que
+        # usam o banco, e o log diz exatamente o que conferir.
+        logger.error(f"Não foi possível criar o cliente do MongoDB -- confira a MONGODB_URL: {e}")
+        app.state.motor_client = None
+        app.state.db = BancoIndisponivel(e)
+        yield
+        return
 
     # mongomock-motor (usado nos testes) não precisa de ping real; detectamos pelo nome da classe
     is_mock = hasattr(client, "__class__") and client.__class__.__name__ == "AsyncMongoMockClient"
@@ -55,6 +67,20 @@ async def lifespan(app: FastAPI):
 
 # Instância principal do FastAPI; o lifespan gerencia a conexão com o banco
 app = FastAPI(title="Comparador de Preços NFC-e", lifespan=lifespan)
+
+
+async def banco_indisponivel(request: Request, exc: Exception) -> JSONResponse:
+    """Banco fora vira 503 com mensagem clara, em qualquer rota -- não um 500.
+
+    Só erros de conexão/configuração: DuplicateKeyError e afins continuam
+    sendo tratados (ou não) por cada controller.
+    """
+    logger.warning(f"Banco indisponível em {request.url.path}: {exc}")
+    return JSONResponse(status_code=503, content={"detail": MENSAGEM_BANCO_INDISPONIVEL})
+
+
+app.add_exception_handler(ConnectionFailure, banco_indisponivel)
+app.add_exception_handler(ConfigurationError, banco_indisponivel)
 
 # Configuração de CORS — permite requests do Vite local e de qualquer subdomínio Vercel/Render
 app.add_middleware(

@@ -140,3 +140,49 @@ def test_cliente_desiste_rapido_de_um_banco_que_nao_responde():
         assert cliente.options.server_selection_timeout == 5
     finally:
         cliente.close()
+
+
+# --- URL do banco que nem chega a virar cliente ------------------------------
+#
+# Erro real visto nos logs do Render (set/2026): o cluster do Atlas deixou de
+# existir, e o próprio construtor do cliente falhou ao resolver o registro SRV:
+#   ConfigurationError: The DNS query name does not exist:
+#   _mongodb._tcp.cluster0.xxxx.mongodb.net.
+# Isso acontece em get_client(), antes de qualquer ping, e derrubava o startup.
+
+def _get_client_com_url_invalida():
+    from pymongo.errors import ConfigurationError
+
+    raise ConfigurationError(
+        "The DNS query name does not exist: _mongodb._tcp.cluster0.inexistente.mongodb.net."
+    )
+
+
+@pytest.mark.asyncio
+async def test_startup_nao_derruba_o_app_com_url_do_banco_invalida(monkeypatch):
+    monkeypatch.setattr(main, "get_client", _get_client_com_url_invalida)
+
+    async with main.lifespan(app):
+        pass  # antes da correção, entrar no lifespan lançava ConfigurationError
+
+
+@pytest.mark.asyncio
+async def test_rotas_que_leem_o_banco_respondem_503_com_url_invalida(monkeypatch):
+    monkeypatch.setattr(main, "get_client", _get_client_com_url_invalida)
+    app.dependency_overrides[get_current_user] = lambda: "user@example.com"
+
+    try:
+        async with main.lifespan(app):
+            async with _cliente_http() as client:
+                login = await client.post(
+                    "/auth/login", json={"email": "a@b.com", "password": "senha1234"}
+                )
+                produtos = await client.get("/products")
+                cadastro = await client.post("/auth/signup", json=_signup())
+    finally:
+        app.dependency_overrides.clear()
+
+    # Sem banco, 503 com mensagem clara -- não um 500 genérico.
+    for resposta in (login, produtos, cadastro):
+        assert resposta.status_code == 503, resposta.text
+        assert "indisponível" in resposta.json()["detail"]
