@@ -8,10 +8,11 @@ get_current_user é usado via Depends() pelos demais controllers (receipts, pric
 para proteger seus endpoints.
 """
 import jwt
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pymongo.errors import DuplicateKeyError
 
 from app.models.user import LoginRequest, SignupRequest
+from app.controllers.dependencies import exigir_banco_pronto
 from app.repositories.users import find_by_email, insert_user
 from app.services.auth import create_access_token, decode_access_token, hash_password, verify_password
 from app.views.auth import TokenResponse
@@ -20,7 +21,9 @@ router = APIRouter()
 
 
 @router.post("/auth/signup", response_model=TokenResponse, status_code=201)
-async def signup(body: SignupRequest, request: Request) -> TokenResponse:
+async def signup(
+    body: SignupRequest, request: Request, _: None = Depends(exigir_banco_pronto)
+) -> TokenResponse:
     db = request.app.state.db
     email = body.email.lower()
     hashed = await hash_password(body.password)

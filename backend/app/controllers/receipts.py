@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pymongo.errors import DuplicateKeyError
 
 from app.controllers.auth import get_current_user
+from app.controllers.dependencies import exigir_banco_pronto
 from app.models.receipt import ReceiptData
 from app.repositories.prices import insert_prices, find_product_ids_by_description
 from app.repositories.products import upsert_product, list_all_product_names
@@ -77,6 +78,7 @@ async def save_receipt(
     request: Request,
     response: Response,
     current_user: str = Depends(get_current_user),
+    _: None = Depends(exigir_banco_pronto),
 ) -> ReceiptData:
     """Persiste um cupom no banco (associado ao usuário autenticado) com normalização de nomes.
 

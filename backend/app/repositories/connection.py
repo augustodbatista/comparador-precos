@@ -17,7 +17,10 @@ load_dotenv()
 def get_client() -> AsyncIOMotorClient:
     """Cria e retorna um cliente Motor. A URL padrão aponta para MongoDB local."""
     url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-    return AsyncIOMotorClient(url)
+    # 5s em vez dos 30s padrão do driver: uma conexão saudável com o Atlas leva
+    # menos de 1s, e com o banco fora é melhor responder 503 logo do que deixar
+    # o startup e cada gravação pendurados.
+    return AsyncIOMotorClient(url, serverSelectionTimeoutMS=5000)
 
 
 def get_db(client: AsyncIOMotorClient) -> AsyncIOMotorDatabase:
@@ -48,3 +51,22 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["users"].create_index("email", unique=True)
     # Índice composto para GET /receipts (filtra por usuário, ordena por mais recente)
     await db["receipts"].create_index([("user_id", 1), ("created_at", -1)])
+
+
+async def garantir_indices(state) -> None:
+    """Cria os índices do banco atual se ainda não existirem. Idempotente.
+
+    Chamado no startup e antes de toda gravação. No startup o banco pode estar
+    fora (cluster do Atlas pausado); nesse caso a criação é adiada para a
+    primeira gravação, que só prossegue depois dela. Isso importa porque o
+    cadastro depende do índice único de users.email para recusar e-mail
+    duplicado: gravar sem o índice deixaria passar duplicatas.
+
+    `state` é o app.state do FastAPI. O controle é pelo próprio objeto do
+    banco, então trocar app.state.db (como os testes fazem) refaz a checagem.
+    """
+    db = state.db
+    if getattr(state, "indices_prontos_para", None) is db:
+        return
+    await create_indexes(db)
+    state.indices_prontos_para = db

@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.repositories.connection import create_indexes, get_client, get_db
+from pymongo.errors import PyMongoError
+
+from app.repositories.connection import garantir_indices, get_client, get_db
 from app.controllers.auth import router as auth_router
 from app.controllers.receipts import router as receipts_router
 from app.controllers.prices import router as prices_router
@@ -36,8 +38,14 @@ async def lifespan(app: FastAPI):
     app.state.motor_client = client
     app.state.db = get_db(client)
 
-    # Cria os índices das 3 collections (idempotente — seguro chamar a cada restart)
-    await create_indexes(app.state.db)
+    # Cria os índices (idempotente). Com o banco fora -- ex.: cluster gratuito do
+    # Atlas pausado -- o app sobe mesmo assim e a criação fica para a primeira
+    # gravação, que é bloqueada até ela acontecer (ver exigir_banco_pronto).
+    # Antes, esta chamada ficava fora do try do ping e derrubava o startup inteiro.
+    try:
+        await garantir_indices(app.state)
+    except PyMongoError as e:
+        logger.warning(f"Índices não criados no startup, banco indisponível: {e}")
 
     yield  # A aplicação roda aqui
 
