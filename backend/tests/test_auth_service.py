@@ -45,7 +45,14 @@ class TestAccessToken:
 
     def test_token_adulterado_levanta_invalid_token(self):
         token = create_access_token("user@example.com")
-        adulterado = token[:-1] + ("A" if token[-1] != "A" else "B")
+        # Adultera o PRIMEIRO caractere da assinatura, não o último. Em base64url,
+        # o último caractere de uma assinatura de 32 bytes carrega só 4 bits de
+        # dado: trocar A/B/C/D entre si mexe apenas nos 2 bits descartados, e a
+        # assinatura continua válida. Isso fazia o teste falhar em ~6% das
+        # execuções (4 de 64 tokens). O primeiro caractere carrega 6 bits inteiros.
+        header, payload, assinatura = token.split(".")
+        trocado = "A" if assinatura[0] != "A" else "B"
+        adulterado = f"{header}.{payload}.{trocado}{assinatura[1:]}"
         with pytest.raises(jwt.InvalidTokenError):
             decode_access_token(adulterado)
 
