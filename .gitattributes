@@ -1,0 +1,4 @@
+# Scripts de shell rodam no Linux do GitHub Actions: com fim de linha CRLF o
+# bash quebra ("command not found" com um \r no fim). Fixa LF neles,
+# independente do core.autocrlf de quem fizer o commit.
+*.sh text eol=lf
