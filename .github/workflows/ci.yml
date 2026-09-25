@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"   # mesma versão do runtime.txt usado no Render
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Testes
+        # Chave só para os testes: o app se recusa a subir sem JWT_SECRET_KEY.
+        # 32+ bytes, o mínimo recomendado para HS256.
+        env:
+          JWT_SECRET_KEY: chave-apenas-para-testes-no-ci-32bytes
+        run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Testes
+        run: npx vitest run
+      - name: Build (inclui checagem de tipos)
+        run: npm run build
