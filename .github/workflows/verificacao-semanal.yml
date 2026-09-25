@@ -1,0 +1,27 @@
+name: Verificação semanal da demo
+
+# Toda segunda às 12:00 UTC (09:00 em Brasília). Confere se a demo publicada
+# está no ar e alcançando o banco, e mantém o cluster gratuito do Atlas ativo:
+# ele é pausado quando fica tempo demais sem conexões, e foi isso que derrubou
+# a demo em set/2026. Se falhar, o GitHub avisa por e-mail.
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+  # Roda também no PR que mexer na verificação, para testá-la antes do merge.
+  pull_request:
+    paths:
+      - .github/workflows/verificacao-semanal.yml
+      - .github/scripts/verificar-demo.sh
+
+permissions:
+  contents: read
+
+jobs:
+  demo-no-ar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Backend alcança o banco e frontend responde
+        run: bash .github/scripts/verificar-demo.sh
